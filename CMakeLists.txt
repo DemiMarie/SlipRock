@@ -1,0 +1,8 @@
+set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
+cmake_minimum_required(VERSION 3.1)
+project(sliprock)
+enable_testing()
+enable_language(C)
+add_definitions(-Wall -Wextra)
+add_subdirectory(src)
+add_subdirectory(test)

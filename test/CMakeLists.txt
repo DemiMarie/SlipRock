@@ -1,0 +1,7 @@
+enable_language(CXX)
+enable_testing()
+add_executable(mytest test.cpp)
+#add_definitions(mytest -pthread)
+set_target_properties(mytest PROPERTIES LINK_FLAGS "-L../src -pthread")
+target_link_libraries(mytest sliprock gtest sodium)
+add_test(mytest mytest)

@@ -1,0 +1,5 @@
+if (WIN32)
+   add_library(sliprock sliprock_windows.c)
+else()
+   add_library(sliprock sliprock.c)
+endif()
