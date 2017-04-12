@@ -261,7 +261,7 @@ static struct passwd *get_password_entry(void) {
       return NULL;
     }
     pw_ptr = (struct passwd *)buf;
-    memset(pw_ptr, sizeof(struct passwd), 0);
+    memset(pw_ptr, 0, sizeof(struct passwd));
   } while ((e = getpwuid_r(getuid(), pw_ptr, buf + sizeof(struct passwd), size,
                            &pw_ptr)) &&
            e == ERANGE);
