@@ -73,7 +73,7 @@ void sliprock_close(struct SliprockConnection *connection) {
 }
 
 static struct SliprockConnection *sliprock_new(const char *const name,
-                                          const size_t namelen) {
+                                               const size_t namelen) {
 
   assert(namelen < (1UL << 16UL)); // arbitrary limit, but enough for anyone
 
@@ -98,7 +98,7 @@ static struct SliprockConnection *sliprock_new(const char *const name,
 }
 
 struct SliprockConnection *sliprock_socket(const char *const name,
-                                      size_t const namelen) {
+                                           size_t const namelen) {
 
   unsigned char tmp[16];
   // Allocate the connection
@@ -106,8 +106,9 @@ struct SliprockConnection *sliprock_socket(const char *const name,
   char created_directory = 0;
   if (NULL == connection)
     return NULL;
-  SLIPROCK_STATIC_ASSERT(sizeof connection->address.sun_path >
-                      sizeof "/tmp/sliprock." - 1 + 20 + 1 + 16 + 1 + 16 + 1);
+  (void)SLIPROCK_STATIC_ASSERT(sizeof connection->address.sun_path >
+                               sizeof "/tmp/sliprock." - 1 + 20 + 1 + 16 + 1 +
+                                   16 + 1);
 
   // Establish the socket
   connection->fd.fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
@@ -124,9 +125,9 @@ struct SliprockConnection *sliprock_socket(const char *const name,
 retry:
   randombytes_buf(tmp, sizeof tmp);
 
-  int count =
-      snprintf(connection->address.sun_path,
-               sizeof connection->address.sun_path, "/tmp/sliprock.%d.", getpid());
+  int count = snprintf(connection->address.sun_path,
+                       sizeof connection->address.sun_path, "/tmp/sliprock.%d.",
+                       getpid());
   char *off = connection->address.sun_path + count;
   size_t remaining = sizeof connection->address.sun_path - count;
   char *res = sodium_bin2hex(off, remaining, tmp, 8);
@@ -206,7 +207,7 @@ fail:
 }
 
 int sliprock_accept(SliprockConnection *connection, struct sockaddr *addr,
-                 socklen_t *size) {
+                    socklen_t *size) {
 #ifdef __linux__
   int fd = accept4(connection->fd.fd, addr, size, SOCK_CLOEXEC);
   if (fd < 0)
@@ -224,7 +225,7 @@ int sliprock_accept(SliprockConnection *connection, struct sockaddr *addr,
   return fd;
 }
 
- int sliprock_connect(struct SliprockReceiver *receiver) {
+int sliprock_connect(struct SliprockReceiver *receiver) {
   int sock = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
   if (sock < 0)
     return SLIPROCK_EOSERR;
@@ -282,12 +283,14 @@ int sliprock_bind(struct SliprockConnection *con) {
   if (NULL == pw)
     return errno;
 
-  size_t newsize = con->namelen + sizeof "/.sliprock/." + 20 + strlen(pw->pw_dir);
+  size_t newsize =
+      con->namelen + sizeof "/.sliprock/." + 20 + strlen(pw->pw_dir);
 
   fname_buf = malloc(newsize);
   if (!fname_buf)
     goto fail;
-  /* Create the sliprock directory.  It’s okay if this directory already exists */
+  /* Create the sliprock directory.  It’s okay if this directory already exists
+   */
   /* This directory is deliberately leaked */
   int res = snprintf(fname_buf, newsize, "%s/.sliprock/", pw->pw_dir);
   if (res < 0)
