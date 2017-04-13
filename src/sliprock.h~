@@ -1,0 +1,48 @@
+#ifndef sliprock_H_INCLUDED
+#define sliprock_H_INCLUDED
+#ifdef __cplusplus
+extern "C" {
+#elif 0
+}
+#endif
+
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <sys/types.h>
+#include <sys/socket.h>
+#endif
+
+typedef struct sliprock_Connection sliprock_Connection;
+
+typedef struct sliprock_Error sliprock_Error;
+
+/**
+ * @param name The name of the connection.  Must be NUL-terminated and not
+ * exceed 96 bytes.  sliprock will copy this string if necessary; it does not
+ * need to be kept alive by the caller.
+ *
+ * @param errmsg A pointer to an sliprock_Error struct that holds error information.
+ * It may be set to NULL, but then no extended error information will be 
+ * available.
+ *
+ * @return an opaque pointer (of type `sliprock_Connection*`) that encapsulates
+ * the state of the bound .  Must be explicitly released by the caller
+ * with sliprock_Release when no longer needed.
+ */
+sliprock_API sliprock_Port* sliprock_bind(const char *name, sliprock_Error *errmsg);
+
+/**
+ * @param 
+ */
+sliprock_API sliprock_Handle 
+
+
+
+
+#if 0
+{
+#elif defined __cplusplus
+}
+#endif
+#endif

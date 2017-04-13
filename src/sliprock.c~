@@ -1,0 +1,129 @@
+#ifdef NDEBUG
+#error "Must be compiled with assertions enabled"
+#endif
+#define _GNU_SOURCE
+#include <stdlib.h>
+#include <stdio.h>
+
+#ifndef _WIN32
+#include <unistd.h>
+#include <pthread.h>
+static pthread_once_t control = PTHREAD_ONCE_INIT;
+#endif
+
+#define DIRECTORY_RANDOM_BYTES 16ULL
+#define DIRECTORY_BASENAME_LEN (2*DIRECTORY_RANDOM_BYTES)
+#define DIRECTORY_PATH_LEN (DIRECTORY_BASENAME_LEN + sizeof "/tmp/")
+#define SOCKET_RANDOM_BYTES 16ULL
+#define SOCKET_BASENAME_LEN (2*SOCKET_RANDOM_BYTES)
+#define SOCKET_PATH_LEN (sizeof("/tmp/") + DIRECTORY_BASENAME_LEN + 1 +  \
+                         SOCKET_BASENAME_LEN)
+struct fd { int fd; };
+struct sliprock_Connection {
+   const size_t namelen;
+   const struct fd fd;
+   const char path[SOCKET_PATH_LEN];
+   char name[];
+};
+
+#ifndef SOCK_CLOEXEC
+#define SOCK_CLOEXEC 0
+#endif
+
+#if !SOCK_CLOEXEC
+#warning Cannot atomically set close-on-exec
+#endif
+
+#ifndef _WIN32
+static sliprock_connection* sliprock_new(const char *const name, const size_t namelen)
+{
+   assert(namelen < (1UL << 16UL)); // arbitrary limit, but enough for anyone
+
+   // Initialize libsodium
+   {
+      initialized = pthread_once(&once, sodium_init) == 0;
+      assert(initialized);
+   }
+
+   struct sliprock_Connection *connection =
+          calloc(1, namelen + sizeof(struct sliprock_Connection));
+
+   if (NULL == connection)
+      return NULL;
+
+   // Guaranteed safe because destination buffer length is long enough
+   strcpy(connection->name, "/tmp/");
+
+   // We have (by construction) enough space for the name
+   memcpy(&connection->name, name, namelen);
+
+   // Zero the rest of the path.  This is redundent, but is included
+   // for explicitness.
+   // The first part of the path is already set by the above strcpy
+   // call.
+   memset(&connection->path + sizeof "/tmp/",
+          0,
+          SOCKET_PATH_LEN - sizeof "/tmp/");
+
+   return connection;
+}
+
+
+sliprock_API sliprock_create(const char *name const buffer, size_t const namelen) {
+   struct sliprock_Connection *result = NULL;
+
+   // Allocate the connection
+   struct sliprock_Connection *connection = sliprock_new(buffer, namelen);
+   if (NULL == connection)
+      return NULL;
+
+   // Establish the socket
+   connection->fd = socket(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0);
+   if (connection->fd < 0)
+      goto fail;
+
+#if !SOCK_CLOEXEC
+   // Set close-on-exec if it could not have been done atomically.
+   {
+      int res = fcntl(socket_fd, FD_CLOEXEC, F_SETFD);
+      assert(res == 0);
+   }
+#endif
+
+   // Temporary buffer used for random numbers
+   char tmp[DIRECTORY_RANDOM_BYTES + SOCKET_RANDOM_BYTES];
+   randombytes_buf(&tmp, sizeof tmp);
+
+   {
+      // 5 is the length "/tmp/" without terminating NUL
+      char *result = sodium_bin2hex(&connection->path + 5,
+                                    DIRECTORY_BASENAME_LEN + 1, /* 16 * 2 + 1 */
+                                    tmp, DIRECTORY_RANDOM_BYTES);
+      assert(result);
+   }
+   if (mkdir(&connection->path, 0700) < 0) {
+      goto fail;
+   }
+
+   struct sockaddr_un address;
+   memset(&address, 0, sizeof address); // Zero any additional fields
+   addr.sun_family = AF_UNIX;
+
+
+   /* The maximum length of socket path (including terminating NUL) */
+   const size_t path_len = sizeof(struct sockaddr_un) -
+      offsetof(struct sockaddr_un, sun_path);
+
+   /* Static assertion that the socket can have a long enough path */
+   static const char _unused[(path_len >= SOCKET_PATH_LEN - 1)*2 - 1];
+   memcpy(&address->sun_path, 
+  fail:
+   if (socket_fd != -1) {
+      close(socket_fd);
+   }
+
+
+
+   free(addr);
+   return nullptr;
+}
