@@ -99,7 +99,9 @@ static struct SliprockConnection *sliprock_new(const char *const name,
 
 struct SliprockConnection *sliprock_socket(const char *const name,
                                            size_t const namelen) {
-
+  assert(name != NULL);
+  if (!sliprock_is_valid_utf8(name, namelen))
+    return NULL;
   unsigned char tmp[16];
   // Allocate the connection
   struct SliprockConnection *connection = sliprock_new(name, namelen);
@@ -146,6 +148,10 @@ retry:
   if (bind(connection->fd.fd, &connection->address,
            sizeof(struct sockaddr_un)) < 0)
     goto fail;
+  if ((errno = sliprock_bind(connection))) {
+    sliprock_close(connection);
+    return NULL;
+  }
 
   return connection;
 fail:
@@ -274,7 +280,7 @@ static struct passwd *get_password_entry(void) {
   return pw_ptr;
 }
 
-int sliprock_bind(struct SliprockConnection *con) {
+static int sliprock_bind(struct SliprockConnection *con) {
   error_t e = errno;
   int succeeded = 0;
   int fd = -1, dir_fd = -1;
