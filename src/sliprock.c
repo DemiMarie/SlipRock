@@ -32,6 +32,7 @@ static pthread_once_t once = PTHREAD_ONCE_INIT;
 struct fd {
   int fd;
 };
+
 struct SliprockConnection {
   const size_t namelen;
   struct fd fd;
@@ -44,7 +45,7 @@ struct SliprockConnection {
   char passwd[32];
   char name[];
 };
-typedef struct SliprockConnection sliprock_Port;
+
 #ifdef __GNUC__
 #pragma GCC poison dontuse
 #endif
@@ -97,11 +98,114 @@ static struct SliprockConnection *sliprock_new(const char *const name,
   return connection;
 }
 
+static struct passwd *get_password_entry(void) {
+  error_t e = errno;
+  char *buf = NULL;
+  size_t size = 28;
+  struct passwd *pw_ptr;
+  do {
+    assert(size < (SIZE_MAX >> 1));
+    if ((buf = realloc(buf, (size <<= 1) + sizeof(struct passwd))) == NULL) {
+      // Yes, we need to handle running out of memory.
+      return NULL;
+    }
+    pw_ptr = (struct passwd *)buf;
+    memset(pw_ptr, 0, sizeof(struct passwd));
+  } while ((e = getpwuid_r(getuid(), pw_ptr, buf + sizeof(struct passwd), size,
+                           &pw_ptr)) &&
+           e == ERANGE);
+  if (pw_ptr == NULL) {
+    free(buf);
+    errno = e ? e : EINVAL;
+    return NULL;
+  }
+  return pw_ptr;
+}
+
+static int sliprock_bind(struct SliprockConnection *con) {
+  error_t e = errno;
+  int succeeded = 0;
+  int fd = -1, dir_fd = -1;
+  char *fname_buf = NULL;
+  struct passwd *const pw = get_password_entry();
+  if (NULL == pw)
+    return errno;
+
+  size_t newsize =
+      con->namelen + sizeof "/.sliprock/." + 20 + strlen(pw->pw_dir);
+
+  fname_buf = malloc(newsize);
+  if (!fname_buf)
+    goto fail;
+  /* Create the sliprock directory.  It’s okay if this directory already exists
+   */
+  /* This directory is deliberately leaked */
+  int res = snprintf(fname_buf, newsize, "%s/.sliprock/", pw->pw_dir);
+  if (res < 0)
+    goto fail;
+  assert((size_t)res < newsize);
+  if (mkdir(fname_buf, 0700) < 0 && errno != EEXIST)
+    goto fail;
+  dir_fd = open(fname_buf, O_DIRECTORY | O_CLOEXEC, 0700);
+  if (dir_fd < 0)
+    goto fail;
+  int newlength =
+      snprintf(fname_buf + res, newsize - res, "%d.%s", getpid(), con->name);
+  if (newlength < 0)
+    goto fail;
+  con->path = fname_buf;
+  assert((size_t)newlength + (size_t)res < newsize);
+
+  /* We have an FD on the directory, so use openat(2) instead of open(2) */
+  fd = openat(dir_fd, fname_buf + res, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC,
+              0600);
+  if (fd < 0)
+    goto fail;
+
+  randombytes_buf(con->passwd, sizeof con->passwd);
+  struct iovec vec[] = {
+      {SLIPROCK_MAGIC, sizeof SLIPROCK_MAGIC},
+      {con->passwd, sizeof con->passwd},
+      {&con->address, sizeof con->address},
+  };
+  if (writev(fd, vec, 2) < 0)
+    goto fail; // Write failed
+
+  // Ensure that the file's contents are valid.
+  if (close(fd) < 0) {
+    // Don't double-close – the state of the FD is unspecified.  Better to
+    // leak an FD than close an FD that other code could be using.
+    fd = -1;
+    goto fail;
+  }
+  fd = -1;
+
+  // Ensure that the newly created file is visible to other programs
+  if (fsync(dir_fd) < 0)
+    goto fail;
+  errno = 0;
+  succeeded = 1;
+fail:
+  e = errno;
+  if (!succeeded) {
+    free(fname_buf);
+    con->path = NULL;
+  }
+  free((void *)pw);
+  if (fd != -1)
+    close(fd);
+  if (dir_fd != -1)
+    close(dir_fd);
+  return errno = e;
+}
+
 struct SliprockConnection *sliprock_socket(const char *const name,
                                            size_t const namelen) {
   assert(name != NULL);
+#if 0 // TODO implement this
   if (!sliprock_is_valid_utf8(name, namelen))
     return NULL;
+#endif
   unsigned char tmp[16];
   // Allocate the connection
   struct SliprockConnection *connection = sliprock_new(name, namelen);
@@ -212,14 +316,15 @@ fail:
   return NULL;
 }
 
-int sliprock_accept(SliprockConnection *connection, struct sockaddr *addr,
-                    socklen_t *size) {
+int sliprock_accept(SliprockConnection *connection) {
+  struct sockaddr _dummy;
+  socklen_t _dummy2;
 #ifdef __linux__
-  int fd = accept4(connection->fd.fd, addr, size, SOCK_CLOEXEC);
+  int fd = accept4(connection->fd.fd, &_dummy, &_dummy2, SOCK_CLOEXEC);
   if (fd < 0)
     return -1;
 #else
-  int fd = accept(connection->fd.fd, addr, size);
+  int fd = accept(connection->fd.fd, &_dummy, &_dummy2);
   if (fd < 0)
     return -1;
   fcntl(fd, FD_CLOEXEC);
@@ -254,105 +359,4 @@ badpass:
 oserr:
   close(sock);
   return SLIPROCK_EOSERR;
-}
-
-static struct passwd *get_password_entry(void) {
-  error_t e = errno;
-  char *buf = NULL;
-  size_t size = 28;
-  struct passwd *pw_ptr;
-  do {
-    assert(size < (SIZE_MAX >> 1));
-    if ((buf = realloc(buf, (size <<= 1) + sizeof(struct passwd))) == NULL) {
-      // Yes, we need to handle running out of memory.
-      return NULL;
-    }
-    pw_ptr = (struct passwd *)buf;
-    memset(pw_ptr, 0, sizeof(struct passwd));
-  } while ((e = getpwuid_r(getuid(), pw_ptr, buf + sizeof(struct passwd), size,
-                           &pw_ptr)) &&
-           e == ERANGE);
-  if (pw_ptr == NULL) {
-    free(buf);
-    errno = e ? e : EINVAL;
-    return NULL;
-  }
-  return pw_ptr;
-}
-
-static int sliprock_bind(struct SliprockConnection *con) {
-  error_t e = errno;
-  int succeeded = 0;
-  int fd = -1, dir_fd = -1;
-  char *fname_buf = NULL;
-  struct passwd *const pw = get_password_entry();
-  if (NULL == pw)
-    return errno;
-
-  size_t newsize =
-      con->namelen + sizeof "/.sliprock/." + 20 + strlen(pw->pw_dir);
-
-  fname_buf = malloc(newsize);
-  if (!fname_buf)
-    goto fail;
-  /* Create the sliprock directory.  It’s okay if this directory already exists
-   */
-  /* This directory is deliberately leaked */
-  int res = snprintf(fname_buf, newsize, "%s/.sliprock/", pw->pw_dir);
-  if (res < 0)
-    goto fail;
-  assert((size_t)res < newsize);
-  if (mkdir(fname_buf, 0700) < 0 && errno != EEXIST)
-    goto fail;
-  dir_fd = open(fname_buf, O_DIRECTORY | O_CLOEXEC, 0700);
-  if (dir_fd < 0)
-    goto fail;
-  int newlength =
-      snprintf(fname_buf + res, newsize - res, "%d.%s", getpid(), con->name);
-  if (newlength < 0)
-    goto fail;
-  con->path = fname_buf;
-  assert((size_t)newlength + (size_t)res < newsize);
-
-  /* We have an FD on the directory, so use openat(2) instead of open(2) */
-  fd = openat(dir_fd, fname_buf + res, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC,
-              0600);
-  if (fd < 0)
-    goto fail;
-
-  randombytes_buf(con->passwd, sizeof con->passwd);
-  struct iovec vec[] = {
-      {SLIPROCK_MAGIC, sizeof SLIPROCK_MAGIC},
-      {con->passwd, sizeof con->passwd},
-      {&con->address, sizeof con->address},
-  };
-  if (writev(fd, vec, 2) < 0)
-    goto fail; // Write failed
-
-  // Ensure that the file's contents are valid.
-  if (close(fd) < 0) {
-    // Don't double-close – the state of the FD is unspecified.  Better to
-    // leak an FD than close an FD that other code could be using.
-    fd = -1;
-    goto fail;
-  }
-  fd = -1;
-
-  // Ensure that the newly created file is visible to other programs
-  if (fsync(dir_fd) < 0)
-    goto fail;
-  errno = 0;
-  succeeded = 1;
-fail:
-  e = errno;
-  if (!succeeded) {
-    free(fname_buf);
-    con->path = NULL;
-  }
-  free((void *)pw);
-  if (fd != -1)
-    close(fd);
-  if (dir_fd != -1)
-    close(dir_fd);
-  return errno = e;
 }
