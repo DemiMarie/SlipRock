@@ -198,10 +198,15 @@ fail:
     close(dir_fd);
   return errno = e;
 }
+#include "charset.c"
 
 struct SliprockConnection *sliprock_socket(const char *const name,
                                            size_t const namelen) {
   assert(name != NULL);
+  if (!sliprock_is_valid_filename(name, namelen)) {
+    errno = EINVAL;
+    return NULL;
+  }
 #if 0 // TODO implement this
   if (!sliprock_is_valid_utf8(name, namelen))
     return NULL;
