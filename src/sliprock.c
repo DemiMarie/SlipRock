@@ -2,6 +2,7 @@
 #error "Must be compiled with assertions enabled"
 #endif
 #define _GNU_SOURCE
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -207,10 +208,13 @@ struct SliprockConnection *sliprock_socket(const char *const name,
     errno = EINVAL;
     return NULL;
   }
-#if 0 // TODO implement this
-  if (!sliprock_is_valid_utf8(name, namelen))
-    return NULL;
-#endif
+  // TODO allow unicode
+  for (size_t i = 0; i < namelen; ++i)
+    if (!isalnum(name[i])) {
+      errno = EILSEQ;
+      return NULL;
+    }
+
   unsigned char tmp[16];
   // Allocate the connection
   struct SliprockConnection *connection = sliprock_new(name, namelen);
