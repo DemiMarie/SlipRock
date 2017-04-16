@@ -209,12 +209,13 @@ struct SliprockConnection *sliprock_socket(const char *const name,
     return NULL;
   }
   // TODO allow unicode
-  for (size_t i = 0; i < namelen; ++i)
-    if (!isalnum(name[i])) {
+  for (size_t i = 0; i < namelen; ++i) {
+    if (!isalnum(name[i]) && name[i] != '-' && name[i] != '.' &&
+        name[i] != '_') {
       errno = EILSEQ;
       return NULL;
     }
-
+  }
   unsigned char tmp[16];
   // Allocate the connection
   struct SliprockConnection *connection = sliprock_new(name, namelen);
