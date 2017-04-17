@@ -94,7 +94,7 @@ SLIPROCK_API void sliprock_close(SliprockConnection *conn);
 
 typedef struct SliprockReceiver SliprockReceiver;
 
-SLIPROCK_API SliprockReceiver *sliprock_open(const char *const filename);
+SLIPROCK_API SliprockReceiver *sliprock_open(const char *const filename, size_t size, pid_t pid);
 
 SLIPROCK_API void sliprock_close_receiver(struct SliprockReceiver *receiver);
 

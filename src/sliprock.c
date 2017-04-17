@@ -6,10 +6,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "sliprock.h"
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <libgen.h>
+#include <pthread.h>
 #include <pthread.h>
 #include <pwd.h>
 #include <sodium.h>
@@ -19,6 +21,7 @@
 #include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
+
 static pthread_once_t once = PTHREAD_ONCE_INIT;
 #define SLIPROCK_MAGIC "\0SlipRock\n\rUNIX"
 
@@ -27,7 +30,7 @@ static pthread_once_t once = PTHREAD_ONCE_INIT;
 #ifndef SOCK_CLOEXEC
 #define SLIPROCK_NO_SOCK_CLOEXEC
 #define SOCK_CLOEXEC 0
-#warning Cannot atomically set close-on-exec
+#error Cannot atomically set close-on-exec
 #endif
 
 struct fd {
@@ -117,23 +120,21 @@ static struct passwd *get_password_entry(void) {
            e == ERANGE);
   if (pw_ptr == NULL) {
     free(buf);
-    errno = e ? e : EINVAL;
+    assert(e);
+    errno = e;
     return NULL;
   }
   return pw_ptr;
 }
-
-static int sliprock_bind(struct SliprockConnection *con) {
-  error_t e = errno;
-  int succeeded = 0;
-  int fd = -1, dir_fd = -1;
+static char *get_fname(const char *srcname, size_t len, int pid, int *innerlen,
+                       int *outerlen) {
   char *fname_buf = NULL;
+  int innerlen_;
   struct passwd *const pw = get_password_entry();
   if (NULL == pw)
-    return errno;
+    goto fail;
 
-  size_t newsize =
-      con->namelen + sizeof "/.sliprock/." + 20 + strlen(pw->pw_dir);
+  size_t newsize = len + sizeof "/.sliprock/..sock" + 20 + strlen(pw->pw_dir);
 
   fname_buf = malloc(newsize);
   if (!fname_buf)
@@ -141,21 +142,48 @@ static int sliprock_bind(struct SliprockConnection *con) {
   /* Create the sliprock directory.  It’s okay if this directory already exists
    */
   /* This directory is deliberately leaked */
-  int res = snprintf(fname_buf, newsize, "%s/.sliprock/", pw->pw_dir);
-  if (res < 0)
+  innerlen_ = snprintf(fname_buf, newsize, "%s/.sliprock/", pw->pw_dir);
+  if (innerlen_ < 0)
     goto fail;
-  assert((size_t)res < newsize);
+  assert((size_t)innerlen_ < newsize);
   if (mkdir(fname_buf, 0700) < 0 && errno != EEXIST)
     goto fail;
+  errno = 0;
+  int newlength = snprintf(fname_buf + innerlen_, newsize - innerlen_,
+                           "%d.%s.sock", pid, srcname);
+  if (newlength < 0)
+    goto fail;
+  if (outerlen)
+    *outerlen = newlength;
+  if (innerlen)
+    *innerlen = innerlen_;
+  free(pw);
+  return fname_buf;
+fail:
+  free(pw);
+  if (innerlen)
+    *innerlen = 0;
+  if (outerlen)
+    *outerlen = 0;
+  free(fname_buf);
+  return NULL;
+}
+
+static int sliprock_bind(struct SliprockConnection *con) {
+  error_t e = errno;
+  int succeeded = 0;
+  int fd = -1, dir_fd = -1;
+  int newlength, res;
+  char *fname_buf =
+      get_fname(con->name, con->namelen, getpid(), &res, &newlength);
+  if (NULL == fname_buf)
+    goto fail;
+  fname_buf[res - 1] = '\0';
   dir_fd = open(fname_buf, O_DIRECTORY | O_CLOEXEC, 0700);
   if (dir_fd < 0)
     goto fail;
-  int newlength =
-      snprintf(fname_buf + res, newsize - res, "%d.%s", getpid(), con->name);
-  if (newlength < 0)
-    goto fail;
+  fname_buf[res - 1] = '/';
   con->path = fname_buf;
-  assert((size_t)newlength + (size_t)res < newsize);
 
   /* We have an FD on the directory, so use openat(2) instead of open(2) */
   fd = openat(dir_fd, fname_buf + res, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC,
@@ -169,7 +197,7 @@ static int sliprock_bind(struct SliprockConnection *con) {
       {con->passwd, sizeof con->passwd},
       {&con->address, sizeof con->address},
   };
-  if (writev(fd, vec, 2) < 0)
+  if (writev(fd, vec, 3) < 0)
     goto fail; // Write failed
 
   // Ensure that the file's contents are valid.
@@ -192,7 +220,6 @@ fail:
     free(fname_buf);
     con->path = NULL;
   }
-  free((void *)pw);
   if (fd != -1)
     close(fd);
   if (dir_fd != -1)
@@ -204,10 +231,12 @@ fail:
 struct SliprockConnection *sliprock_socket(const char *const name,
                                            size_t const namelen) {
   assert(name != NULL);
+#if 0
   if (!sliprock_is_valid_filename(name, namelen)) {
     errno = EINVAL;
     return NULL;
   }
+#endif
   // TODO allow unicode
   for (size_t i = 0; i < namelen; ++i) {
     if (!isalnum(name[i]) && name[i] != '-' && name[i] != '.' &&
@@ -233,7 +262,7 @@ struct SliprockConnection *sliprock_socket(const char *const name,
 
 // Set close-on-exec if it could not have been done atomically.
 #ifdef SLIPROCK_NO_SOCK_CLOEXEC
-  int res = fcntl(connection->fd.fd, FD_CLOEXEC, F_SETFD);
+  int res = fcntl(connection->fd.fd, F_SETFD, FD_CLOEXEC);
   assert(res == 0);
 #endif
 
@@ -262,6 +291,8 @@ retry:
   if (bind(connection->fd.fd, &connection->address,
            sizeof(struct sockaddr_un)) < 0)
     goto fail;
+  if (listen(connection->fd.fd, INT_MAX) < 0)
+    goto fail;
   if ((errno = sliprock_bind(connection))) {
     sliprock_close(connection);
     return NULL;
@@ -282,19 +313,23 @@ fail:
 }
 
 struct SliprockReceiver {
-  char *pathname;    //< The pathname of the socket
-  char passcode[32]; //< The passcode of the connection
+  struct sockaddr_un sock; //< The pathname of the socket
+  char passcode[32];       //< The passcode of the connection
+  int pid;
 };
 
-void sliprock_close_receiver(SliprockReceiver *receiver) {
-  if (receiver != NULL) {
-    free((void *)receiver->pathname);
-    free(receiver);
-  }
-}
-struct SliprockReceiver *sliprock_open(const char *const filename) {
+void sliprock_close_receiver(SliprockReceiver *receiver) { free(receiver); }
+
+struct SliprockReceiver *sliprock_open(const char *const filename, size_t size,
+                                       pid_t pid) {
+  assert(strlen(filename) == size);
+  errno = 0;
   struct SliprockReceiver *receiver = NULL;
-  int fd = open(filename, O_RDONLY);
+  char *fname = get_fname(filename, size, pid, NULL, NULL);
+  if (!fname)
+    return NULL;
+  errno = 0;
+  int fd = open(fname, O_RDONLY);
   if (fd < 0)
     goto fail;
   receiver = calloc(1, sizeof(struct SliprockReceiver));
@@ -302,25 +337,25 @@ struct SliprockReceiver *sliprock_open(const char *const filename) {
     goto fail;
 
   char magic[sizeof(SLIPROCK_MAGIC)];
-  struct sockaddr_un path;
   struct iovec vecs[] = {
       {magic, sizeof magic},
       {receiver->passcode, sizeof receiver->passcode},
-      {&path, sizeof path},
+      {&receiver->sock, sizeof receiver->sock},
   };
   ssize_t res = readv(fd, vecs, 3);
-  if (res < (ssize_t)(sizeof magic + sizeof receiver->passcode + sizeof path))
+  if (res < (ssize_t)(sizeof magic + sizeof receiver->passcode +
+                      sizeof receiver->sock))
     goto fail;
-  receiver->pathname = strdup(path.sun_path);
-  if (NULL == receiver->pathname)
-    goto fail;
+  assert(receiver->sock.sun_family == AF_UNIX);
   close(fd);
+  free(fname);
   return receiver;
   int err;
 fail:
   err = errno;
   if (fd >= 0)
     close(fd);
+  free(fname);
   sliprock_close_receiver(receiver);
   errno = err;
   return NULL;
@@ -328,7 +363,7 @@ fail:
 
 int sliprock_accept(SliprockConnection *connection) {
   struct sockaddr _dummy;
-  socklen_t _dummy2;
+  socklen_t _dummy2 = sizeof(struct sockaddr_un);
 #ifdef __linux__
   int fd = accept4(connection->fd.fd, &_dummy, &_dummy2, SOCK_CLOEXEC);
   if (fd < 0)
@@ -337,7 +372,7 @@ int sliprock_accept(SliprockConnection *connection) {
   int fd = accept(connection->fd.fd, &_dummy, &_dummy2);
   if (fd < 0)
     return -1;
-  fcntl(fd, FD_CLOEXEC);
+  fcntl(fd, F_SETFD, FD_CLOEXEC);
 #endif
   if (write(fd, connection->passwd, sizeof connection->passwd) < 32) {
     close(fd);
@@ -350,12 +385,11 @@ int sliprock_connect(struct SliprockReceiver *receiver) {
   int sock = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
   if (sock < 0)
     return SLIPROCK_EOSERR;
-#if !SOCK_CLOEXEC
-  if (fcntl(sock, SOCK_CLOEXEC))
+#ifdef SLIPROCK_NO_SOCK_CLOEXEC
+  if (fcntl(sock, FD_CLOEXEC))
     goto oserr;
 #endif
-  struct sockaddr_un p;
-  if (connect(sock, &p, sizeof(struct sockaddr_un)))
+  if (connect(sock, &receiver->sock, sizeof(struct sockaddr_un)) < 0)
     goto oserr;
   char pw_received[32];
   if (read(sock, pw_received, sizeof pw_received) < 32)
