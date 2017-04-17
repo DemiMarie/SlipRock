@@ -362,7 +362,7 @@ fail:
 }
 
 int sliprock_accept(SliprockConnection *connection) {
-  struct sockaddr _dummy;
+  struct sockaddr_un _dummy;
   socklen_t _dummy2 = sizeof(struct sockaddr_un);
 #ifdef __linux__
   int fd = accept4(connection->fd.fd, &_dummy, &_dummy2, SOCK_CLOEXEC);
