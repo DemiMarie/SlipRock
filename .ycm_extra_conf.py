@@ -60,8 +60,11 @@ flags = [
 '-x',
 'c',
 '-I', 'src',
+'-I', '/usr/x86_64-w64-mingw32/sys-root/mingw/include/',
 ]
-compilation_database_folder = '/dev/null/etc'
+def DirectoryOfThisScript():
+  return os.path.dirname( os.path.abspath( __file__ ) )
+compilation_database_folder = os.path.join(DirectoryOfThisScript(), '../build-sliprock-windows')
 
 # Set this to the absolute path to the folder (NOT the file!) containing the
 # compile_commands.json file to use that instead of 'flags'. See here for
@@ -81,8 +84,6 @@ else:
 
 SOURCE_EXTENSIONS = [ '.cpp', '.cxx', '.cc', '.c', '.m', '.mm' ]
 
-def DirectoryOfThisScript():
-  return os.path.dirname( os.path.abspath( __file__ ) )
 
 
 def MakeRelativePathsInFlagsAbsolute( flags, working_directory ):
