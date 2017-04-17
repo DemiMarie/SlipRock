@@ -10,9 +10,9 @@ extern "C" {
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #ifdef SLIPROCK_INTERNALS
-#define SLIPROCK_API __declspec((dllexport))
+#define SLIPROCK_API __declspec(dllexport)
 #else
-#define SLIPROCK_API __declspec((dllimport))
+#define SLIPROCK_API __declspec(dllimport)
 #endif
 typedef HANDLE SliprockHandle;
 #else
@@ -94,7 +94,7 @@ SLIPROCK_API void sliprock_close(SliprockConnection *conn);
 
 typedef struct SliprockReceiver SliprockReceiver;
 
-SLIPROCK_API SliprockReceiver *sliprock_open(const char *const filename, size_t size, pid_t pid);
+SLIPROCK_API SliprockReceiver *sliprock_open(const char *const filename, size_t size, int32_t pid);
 
 SLIPROCK_API void sliprock_close_receiver(struct SliprockReceiver *receiver);
 
