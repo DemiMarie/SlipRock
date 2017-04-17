@@ -9,3 +9,13 @@ SlipRock provides a blocking API.  This is by design.  SlipRock involves many fi
 The library is in its infancy.  The only test so far establishes that the server side of a connection can be created, bound, and torn down.  The plan is to heavily test SlipRock.  This is essential to achieving its robustness goals.
 
 SlipRock is fully thread-safe, provided that there is a happens-before relationship between the `sliprock_bind` call on a connection and all calls to `sliprock_accept` on the same connection.  It has no dependencies on Windows.  On other systems, SlipRock currently relies on libsodium for random-number generation and binary-to-hex conversion.  This is only a tiny fraction of the overall code in libsodium.  Other than random-number generation, SlipRock does not use cryptography in any way.  All security is provided by OS access controls.
+
+Current Status:
+
+- [X] Compiles on Linux
+- [X] Can send simple message on Linux
+- [X] Basic test case
+- [ ] Compiles on Windows
+- [ ] Basic testing on Windows
+- [ ] Comprehensive testing
+- [ ] Extensive tests of error conditions
