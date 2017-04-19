@@ -321,7 +321,7 @@ struct SliprockReceiver {
 void sliprock_close_receiver(SliprockReceiver *receiver) { free(receiver); }
 
 struct SliprockReceiver *sliprock_open(const char *const filename, size_t size,
-                                       pid_t pid) {
+                                       uint32_t pid) {
   assert(strlen(filename) == size);
   errno = 0;
   struct SliprockReceiver *receiver = NULL;
@@ -361,7 +361,7 @@ fail:
   return NULL;
 }
 
-int sliprock_accept(SliprockConnection *connection) {
+SliprockHandle sliprock_accept(SliprockConnection *connection) {
   struct sockaddr_un _dummy;
   socklen_t _dummy2 = sizeof(struct sockaddr_un);
 #ifdef __linux__
@@ -381,7 +381,7 @@ int sliprock_accept(SliprockConnection *connection) {
   return fd;
 }
 
-int sliprock_connect(struct SliprockReceiver *receiver) {
+SliprockHandle sliprock_connect(const struct SliprockReceiver *receiver) {
   int sock = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
   if (sock < 0)
     return SLIPROCK_EOSERR;
@@ -403,4 +403,8 @@ badpass:
 oserr:
   close(sock);
   return SLIPROCK_EOSERR;
+}
+
+uint64_t sliprock_UNSAFEgetRawHandle(const struct SliprockConnection *con) {
+  return (uint64_t)con->fd.fd;
 }

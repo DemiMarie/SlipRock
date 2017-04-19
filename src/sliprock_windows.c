@@ -97,8 +97,8 @@ void initNamedPipe(_Out_ struct pipe *pipe) {
   /* Not worried about timing attacks.  The pipe name is public anyway. */
   if ((size_t)_snwprintf_s(pipe->name, (sizeof pipe->name) / 2,
                            (sizeof pipe->name) / 2 + 1,
-                           L"\\\\.\\pipe\\sliprock.%ld.%016I64x%016I64x.sock",
-                           GetCurrentProcessId(), random[0], random[1]) < 0) {
+                           L"\\\\.\\pipe\\sliprock.%ld.%016I64.sock",
+                           GetCurrentProcessId(), random[0]) < 0) {
     /* Impossible */
     abort();
   }
@@ -110,7 +110,7 @@ void initNamedPipe(_Out_ struct pipe *pipe) {
   ZeroMemory(&sec_attributes, sizeof sec_attributes);
 
   sec_attributes.nLength = sizeof sec_attributes;
-  sec_attributes.bInheritHandle = 0; /* not necessary */
+  sec_attributes.bInheritHandle = 0; /* not necessary – already zeroed */
   pipe->handle = CreateNamedPipeW(
       pipe->name, PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE,
       PIPE_TYPE_MESSAGE | PIPE_REJECT_REMOTE_CLIENTS, PIPE_UNLIMITED_INSTANCES,
@@ -131,17 +131,13 @@ struct SliprockConnection *sliprock_socket(const char *const name,
   }
   unsigned char tmp[16];
   // Allocate the connection
-  struct SliprockConnection *connection = 
+  struct SliprockConnection *connection = calloc(sizeof(struct SliprockConnection), 1);
   char created_directory = 0;
   if (NULL == connection)
     return NULL;
-  (void)SLIPROCK_STATIC_ASSERT(sizeof connection->address.sun_path >
-                               sizeof "/tmp/sliprock." - 1 + 20 + 1 + 16 + 1 +
-                                   16 + 1);
 
 // Temporary buffer used for random numbers
 retry:
-  randombytes_buf(tmp, sizeof tmp);
 
   if ((errno = sliprock_bind(connection))) {
     sliprock_close(connection);
