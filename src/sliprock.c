@@ -66,7 +66,8 @@ void sliprock_close(struct SliprockConnection *connection) {
   if (NULL == connection) {
     return;
   }
-  assert(connection->fd.fd >= 0);
+  // not true in the presence of sliprock_UNSAFEgetRawHandle
+  // assert(connection->fd.fd >= 0);
   if (NULL != connection->path) {
     unlink(connection->path);
     free((void *)connection->path);
@@ -133,7 +134,7 @@ static char *get_fname(const char *srcname, size_t len, int pid, int *innerlen,
   struct passwd *const pw = get_password_entry();
   if (NULL == pw)
     goto fail;
-
+  assert(len <= INT_MAX);
   size_t newsize = len + sizeof "/.sliprock/..sock" + 20 + strlen(pw->pw_dir);
 
   fname_buf = malloc(newsize);
@@ -150,7 +151,7 @@ static char *get_fname(const char *srcname, size_t len, int pid, int *innerlen,
     goto fail;
   errno = 0;
   int newlength = snprintf(fname_buf + innerlen_, newsize - innerlen_,
-                           "%d.%s.sock", pid, srcname);
+                           "%d.%*s.sock", pid, (int)len, srcname);
   if (newlength < 0)
     goto fail;
   if (outerlen)
@@ -237,6 +238,10 @@ struct SliprockConnection *sliprock_socket(const char *const name,
     return NULL;
   }
 #endif
+  if (namelen > 1 << 15) {
+    errno = ERANGE;
+    return NULL;
+  }
   // TODO allow unicode
   for (size_t i = 0; i < namelen; ++i) {
     if (!isalnum(name[i]) && name[i] != '-' && name[i] != '.' &&
@@ -362,6 +367,7 @@ fail:
 }
 
 SliprockHandle sliprock_accept(SliprockConnection *connection) {
+  assert(connection->fd.fd >= 0);
   struct sockaddr_un _dummy;
   socklen_t _dummy2 = sizeof(struct sockaddr_un);
 #ifdef __linux__
@@ -405,6 +411,10 @@ oserr:
   return SLIPROCK_EOSERR;
 }
 
-uint64_t sliprock_UNSAFEgetRawHandle(const struct SliprockConnection *con) {
-  return (uint64_t)con->fd.fd;
+uint64_t sliprock_UNSAFEgetRawHandle(struct SliprockConnection *con,
+                                     int should_release) {
+  uint64_t handle = (uint64_t)con->fd.fd;
+  if (should_release)
+    con->fd.fd = -1;
+  return handle;
 }
