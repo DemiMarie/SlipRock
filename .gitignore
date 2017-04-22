@@ -34,3 +34,8 @@
 
 # CMake products
 build/
+
+# Editor backups
+*~
+.#*
+\#*#
