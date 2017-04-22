@@ -38,13 +38,14 @@ struct SliprockConnection {
   const size_t pathlen;
   struct pipe pipe;
   char passwd[32];
-  wchar_t *file_path; //< The path – must be passed to free() when no longer needed
+  wchar_t
+      *file_path; //< The path – must be passed to free() when no longer needed
   char name[];
 };
 
 void sliprock_close(struct SliprockConnection *conn) {
   if (conn->pipe.handle != INVALID_HANDLE_VALUE)
-     CloseHandle(conn->pipe.handle);
+    CloseHandle(conn->pipe.handle);
   free(conn->file_path);
   free(conn);
 }
@@ -56,20 +57,22 @@ static char *nameptr(struct SliprockConnection *con) {
 #endif
 
 static const wchar_t *get_fname(const char *srcname, size_t len, int pid,
-                                int *innerlen) {
+                                int *innerlen, int *outerlen) {
   void *current_token = GetCurrentProcessToken();
   DWORD homelen = 0;
   GetUserProfileDirectoryW(current_token, NULL, &homelen);
   if (homelen == 0)
     return NULL;
   wchar_t *path = calloc(20 /* length of UINT64_MAX as decimal */ +
-                             2 * homelen /* length of home directory */ +
-                             2 * len + sizeof L"\\.sliprock\\..sock",
-                         1);
+                             homelen /* length of home directory */ +
+                             len + sizeof "\\.sliprock\\..sock" +
+                         4 /* size of \\?\ */,
+                         2);
   if (path == NULL)
     return NULL;
+  CopyMemory(path, "\\\\?\\", sizeof "\\\\?\\");
   DWORD newhomelen;
-  GetUserProfileDirectoryW(current_token, path, &newhomelen);
+  GetUserProfileDirectoryW(current_token + 4, path, &newhomelen);
   if (newhomelen != homelen)
     abort();
   size_t available = 20 + sizeof "\\.sliprock\\.";
@@ -83,6 +86,7 @@ static const wchar_t *get_fname(const char *srcname, size_t len, int pid,
   size_t newlen = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, srcname,
                                       len, path + newhomelen + res, len);
   wcscpy(path + newhomelen + res + newlen, L".sock");
+  *outerlen = path + newhomelen + res + newlen + 5;
   return path;
 }
 
@@ -97,7 +101,7 @@ void initNamedPipe(_Out_ struct pipe *pipe) {
   /* Not worried about timing attacks.  The pipe name is public anyway. */
   if ((size_t)_snwprintf_s(pipe->name, (sizeof pipe->name) / 2,
                            (sizeof pipe->name) / 2 + 1,
-                           L"\\\\.\\pipe\\sliprock.%ld.%016I64.sock",
+                           L"\\\\?\\pipe\\sliprock\\%ld\\%016I64\\sock",
                            GetCurrentProcessId(), random[0]) < 0) {
     /* Impossible */
     abort();
@@ -120,6 +124,12 @@ void initNamedPipe(_Out_ struct pipe *pipe) {
 
 struct SliprockConnection *sliprock_socket(const char *const name,
                                            size_t const namelen) {
+  int innerlen;
+  unsigned char tmp[16];
+  struct SliprockConnection *connection = NULL;
+  HANDLE fhandle = INVALID_HANDLE_VALUE;
+  SECURITY_ATTRIBUTES sec_attributes;
+
   assert(name != NULL);
   // TODO allow unicode
   for (size_t i = 0; i < namelen; ++i) {
@@ -129,31 +139,54 @@ struct SliprockConnection *sliprock_socket(const char *const name,
       return NULL;
     }
   }
-  unsigned char tmp[16];
   // Allocate the connection
-  struct SliprockConnection *connection = calloc(sizeof(struct SliprockConnection), 1);
-  char created_directory = 0;
-  if (NULL == connection)
+  connection = calloc(sizeof(struct SliprockConnection), 1);
+  if (NULL != connection)
+    goto fail;
+  connection->path = get_fname(name, namelen, GetCurrentProcessId(), &innerlen,
+                               &connection->pathlen);
+  if (NULL != connection->path)
     return NULL;
+  initNamedPipe(&connection->pipe);
+  if (NULL != connection->pipe.handle)
+    goto fail;
 
-// Temporary buffer used for random numbers
-retry:
+  assert(connection->path[innerlen] == '\\');
+  connection->path[innerlen] = '\0';
+  /* Can't hurt.  Might help (IIRC several Windows API structs must be zeroed).
+   */
+  ZeroMemory(&sec_attributes, sizeof sec_attributes);
 
-  if ((errno = sliprock_bind(connection))) {
-    sliprock_close(connection);
-    return NULL;
-  }
-
+  sec_attributes.nLength = sizeof sec_attributes;
+  sec_attributes.bInheritHandle = 0; /* not necessary – already zeroed */
+  if (!CreateDirectoryW(connection->path, &sec_attributes) &&
+      GetLastError() != ERROR_ALREADY_EXISTS)
+    goto fail;
+  else
+     SetLastError(ERROR_SUCCESS);
+  connection->path[innerlen] = '\\';
+  fhandle = CreateFileW(connection->path,
+                   GENERIC_READ,
+                   0,
+                   &sec_attributes,
+                   CREATE_ALWAYS,
+                   FILE_ATTRIBUTE_NORMAL,
+                               NULL);
+  if (INVALID_HANDLE_VALUE == fhandle)
+     goto fail;
+  assert(0 && "Not yet implemented: writing temp file!");
+  CloseHandle(fhandle);
+  fhandle = INVALID_HANDLE_VALUE;
   return connection;
 fail:
-  if (connection != NULL) {
-    if (connection->fd.fd != -1) {
-      close(connection->fd.fd);
-    }
-    if (created_directory) {
-      rmdir(dirname(connection->address.sun_path));
-    }
-    free(connection);
-  }
+  DWORD err = GetLastError();
+  if (INVALID_HANDLE_VALUE != connection->pipe.handle)
+     CloseHandle(connection->pipe.handle);
+  if (INVALID_HANDLE_VALUE != fhandle)
+     CloseHandle(fhandle);
+  DeleteFile(connection->path);
+  free(connection->path);
+  free(connection);
+  SetLastError(err);
   return NULL;
 }
