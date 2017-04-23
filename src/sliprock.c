@@ -38,7 +38,7 @@ struct fd {
 };
 
 struct SliprockConnection {
-  const size_t namelen;
+  size_t namelen;
   struct fd fd;
   // const char path[SOCKET_PATH_LEN];
   const char *path;
@@ -72,7 +72,8 @@ void sliprock_close(struct SliprockConnection *connection) {
     unlink(connection->path);
     free((void *)connection->path);
   }
-  close(connection->fd.fd);
+  if (connection->fd.fd >= 0)
+    close(connection->fd.fd);
   unlink(CON_PATH(connection));
   rmdir(dirname(CON_PATH(connection)));
   free(connection);
@@ -99,6 +100,7 @@ static struct SliprockConnection *sliprock_new(const char *const name,
 
   // We have (by construction) enough space for the name
   memcpy(&connection->name, name, namelen);
+  connection->namelen = namelen;
 
   return connection;
 }
@@ -129,31 +131,25 @@ static struct passwd *get_password_entry(void) {
 }
 static char *get_fname(const char *srcname, size_t len, int pid, int *innerlen,
                        int *outerlen) {
+  assert(strnlen(srcname, len));
   char *fname_buf = NULL;
   int innerlen_;
+  int newlength;
   struct passwd *const pw = get_password_entry();
   if (NULL == pw)
     goto fail;
-  assert(len <= INT_MAX);
+  assert(len <= UINT16_MAX);
   size_t newsize = len + sizeof "/.sliprock/..sock" + 20 + strlen(pw->pw_dir);
 
   fname_buf = malloc(newsize);
   if (!fname_buf)
     goto fail;
-  /* Create the sliprock directory.  It’s okay if this directory already exists
-   */
-  /* This directory is deliberately leaked */
-  innerlen_ = snprintf(fname_buf, newsize, "%s/.sliprock/", pw->pw_dir);
-  if (innerlen_ < 0)
-    goto fail;
-  assert((size_t)innerlen_ < newsize);
-  if (mkdir(fname_buf, 0700) < 0 && errno != EEXIST)
-    goto fail;
-  errno = 0;
-  int newlength = snprintf(fname_buf + innerlen_, newsize - innerlen_,
-                           "%d.%*s.sock", pid, (int)len, srcname);
+  innerlen_ = strlen(pw->pw_dir) + sizeof "/.sliprock" - 1;
+  newlength = snprintf(fname_buf, newsize, "%s/.sliprock/%d.%.*s.sock",
+                       pw->pw_dir, pid, (int)len, srcname);
   if (newlength < 0)
     goto fail;
+  errno = 0;
   if (outerlen)
     *outerlen = newlength;
   if (innerlen)
@@ -175,20 +171,25 @@ static int sliprock_bind(struct SliprockConnection *con) {
   int succeeded = 0;
   int fd = -1, dir_fd = -1;
   int newlength, res;
+  assert(strnlen(con->name, con->namelen));
   char *fname_buf =
       get_fname(con->name, con->namelen, getpid(), &res, &newlength);
   if (NULL == fname_buf)
     goto fail;
-  fname_buf[res - 1] = '\0';
+  assert('/' == fname_buf[res]);
+  fname_buf[res] = '\0';
+  if (mkdir(fname_buf, 0700) < 0 && errno != EEXIST)
+    goto fail;
   dir_fd = open(fname_buf, O_DIRECTORY | O_CLOEXEC, 0700);
   if (dir_fd < 0)
     goto fail;
-  fname_buf[res - 1] = '/';
+  fname_buf[res] = '/';
   con->path = fname_buf;
 
   /* We have an FD on the directory, so use openat(2) instead of open(2) */
-  fd = openat(dir_fd, fname_buf + res, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC,
-              0600);
+  /* +1 because of the / character */
+  fd = openat(dir_fd, fname_buf + res + 1,
+              O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
   if (fd < 0)
     goto fail;
 
@@ -202,6 +203,7 @@ static int sliprock_bind(struct SliprockConnection *con) {
     goto fail; // Write failed
 
   // Ensure that the file's contents are valid.
+  assert(fd > 0);
   if (close(fd) < 0) {
     // Don't double-close – the state of the FD is unspecified.  Better to
     // leak an FD than close an FD that other code could be using.
@@ -327,9 +329,10 @@ void sliprock_close_receiver(SliprockReceiver *receiver) { free(receiver); }
 
 struct SliprockReceiver *sliprock_open(const char *const filename, size_t size,
                                        uint32_t pid) {
-  assert(strlen(filename) == size);
   errno = 0;
   struct SliprockReceiver *receiver = NULL;
+  printf("Size: %zu\n", size);
+  fflush(stdout);
   char *fname = get_fname(filename, size, pid, NULL, NULL);
   if (!fname)
     return NULL;
@@ -417,4 +420,9 @@ uint64_t sliprock_UNSAFEgetRawHandle(struct SliprockConnection *con,
   if (should_release)
     con->fd.fd = -1;
   return handle;
+}
+
+const char *
+sliprock_UNSAFEgetPasscode(const struct SliprockConnection *connection) {
+  return connection->passwd;
 }

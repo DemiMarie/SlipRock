@@ -18,7 +18,7 @@ extern "C" {
 #include <sys/socket.h>
 #include <sys/types.h>
 #ifdef __GNUC__
-#define SLIPROCK_API __attribute__((visibility("protected")))
+#define SLIPROCK_API __attribute__((visibility("default")))
 #else
 #define SLIPROCK_API
 #endif
@@ -181,7 +181,7 @@ SLIPROCK_API SliprockHandle sliprock_UNSAFEgetRawHandle(
  * pointed to by this **MUST** be the first thing written to any handles created
  * from the OS handle.
  */
-SLIPROCK_API char *
+SLIPROCK_API const char *
 sliprock_UNSAFEgetPasscode(const struct SliprockConnection *connection);
 #if 0
 {

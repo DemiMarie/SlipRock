@@ -13,7 +13,7 @@ TEST(CanCreateConnection, ItWorks) {
   int fds[2];
   ASSERT_EQ(pipe(fds), 0);
   SliprockConnection *con =
-      sliprock_socket("dummy_val", sizeof("dummy_val") - 1);
+      sliprock_socket("dummy_valq", sizeof("dummy_val") - 1);
   ASSERT_NE(con, nullptr);
 
   char buf[] = "Test message!";
@@ -21,7 +21,7 @@ TEST(CanCreateConnection, ItWorks) {
   bool accept_succeeded = false, open_succeeded = false,
        write_succeeded = false, read_succeeded = false;
   std::thread thread([&]() {
-    auto handle = sliprock_accept(con);
+    auto handle = (int)sliprock_accept(con);
     if (handle < 0)
       return;
     if (write(handle, buf, sizeof buf) != sizeof buf)
@@ -31,8 +31,9 @@ TEST(CanCreateConnection, ItWorks) {
     write_succeeded = true;
   });
   int fd = -1;
+  system("ls ~/.sliprock");
   SliprockReceiver *receiver =
-      sliprock_open("dummy_val", strlen("dummy_val"), getpid());
+      sliprock_open("dummy_valr", sizeof("dummy_val") - 1, getpid());
   if (receiver == nullptr) {
     perror("sliprock_open");
     goto fail;
@@ -48,13 +49,13 @@ TEST(CanCreateConnection, ItWorks) {
   }
   EXPECT_EQ(memcmp(buf2, buf, sizeof buf), 0);
   EXPECT_GT(fd, -1);
-  EXPECT_EQ(close(fd), 0);
-  fd = -1;
   read_succeeded = true;
 fail:
-  EXPECT_EQ(read_succeeded, true);
+  EXPECT_EQ(true, read_succeeded);
   EXPECT_NE(receiver, nullptr);
-  close(fd);
+  if (fd >= 0)
+     EXPECT_EQ(close(fd), 0);
+  fd = -1;
   sliprock_close_receiver(receiver);
   thread.join();
   EXPECT_EQ(write_succeeded, true);
