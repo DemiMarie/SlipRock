@@ -181,7 +181,7 @@ struct SliprockConnection *sliprock_socket(const char *const name,
      SetLastError(ERROR_SUCCESS);
   connection->path[innerlen] = '\\';
   hFile = CreateFileW(connection->path,
-                   GENERIC_READ,
+                   GENERIC_WRITE,
                    0,
                    &sec_attributes,
                    CREATE_ALWAYS,

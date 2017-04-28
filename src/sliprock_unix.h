@@ -1,16 +1,16 @@
 #include <errno.h>
 #include <fcntl.h>
 
+#include <assert.h>
 #include <libgen.h>
 #include <pthread.h>
+#include <pwd.h>
 #include <sys/socket.h>
-#include <sys/un.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <unistd.h>
-#include <pwd.h>
 #include <sys/un.h>
-#include <assert.h>
+#include <sys/un.h>
+#include <unistd.h>
 
 // Sodium
 #include <sodium.h>
@@ -26,12 +26,13 @@ typedef char MyChar;
 
 struct SliprockConnection {
   size_t namelen;
-  int fd;
   // const char path[SOCKET_PATH_LEN];
   char *path;
-  struct sockaddr_un address;
   char passwd[32];
+  int fd;
+  struct sockaddr_un address;
   char has_socket;
+  char padding__[5];
   char name[];
 };
 
@@ -41,8 +42,9 @@ struct SliprockConnection {
 
 typedef int SliprockInternalHandle;
 
+// Get the user's home directory.
 static const char *sliprock_get_home_directory(void **freeptr) {
-  int e = errno;
+  int e;
   struct passwd *buf = NULL;
   size_t size = 28;
   struct passwd *pw_ptr;
@@ -68,3 +70,45 @@ static const char *sliprock_get_home_directory(void **freeptr) {
   *freeptr = pw_ptr;
   return pw_ptr->pw_dir;
 }
+static int is_sodium_initialized;
+static void init_libsodium(void) { is_sodium_initialized = sodium_init(); }
+
+// Initialize libsodium
+static int init_func(void) {
+  int initialized = pthread_once(&once, &init_libsodium);
+  if (initialized) {
+    errno = initialized;
+    return -1;
+  }
+  if (is_sodium_initialized == -1)
+    return -1;
+  return 0;
+}
+
+static int fill_randombuf(void *p, size_t size) {
+   randombytes_buf(p, size);
+   return 0;
+}
+#if 0
+static int create_directory_and_file(MyChar *buf) {
+   char *const terminus = strrchr(buf, '/');
+   int dir_fd;
+   int succeeded = 0;
+   int file_fd = -1;
+   assert(NULL != terminus && "create_directory_and_file passed a pathname with no path separator!");
+   *terminus = '\0';
+   if (mkdir(buf, 0700) && errno != EEXIST) {
+      *terminus = '/';
+      return -1;
+   }
+   if ((dir_fd = open(buf, O_DIRECTORY)) < 0) {
+      *terminus = '/';
+      return -1;
+   }
+   *terminus = '/';
+   close(dir_fd);
+   if (-1 != file_fd && !succeeded)
+      close(file_fd);
+
+}
+#endif

@@ -1,7 +1,11 @@
-#ifdef NDEBUG
-#error "Must be compiled with assertions enabled"
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wreserved-id-macro"
 #endif
 #define _GNU_SOURCE
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 #include "sliprock.h"
 #include <assert.h>
 #include <ctype.h>
@@ -17,10 +21,6 @@
 #include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
-static void init_libsodium(void) {
-  int x = sodium_init();
-  assert(x == 0);
-}
 
 void sliprock_close(struct SliprockConnection *connection) {
   if (NULL == connection) {
@@ -45,14 +45,9 @@ void sliprock_close(struct SliprockConnection *connection) {
 
 static struct SliprockConnection *sliprock_new(const char *const name,
                                                const size_t namelen) {
-
-  assert(namelen <
-         (1UL << 16UL)); // arbitrary limit, but enough for anyone
-
-  // Initialize libsodium
-  {
-    int initialized = pthread_once(&once, &init_libsodium) == 0;
-    assert(initialized);
+  if (namelen > 200) {
+    errno = ERANGE;
+    return NULL;
   }
 
   struct SliprockConnection *connection =
@@ -116,7 +111,7 @@ static char *get_fname(const char *srcname, size_t len, int pid,
 }
 
 static int sliprock_bind(struct SliprockConnection *con) {
-  error_t e = errno;
+  error_t e;
   int succeeded = 0;
   int fd = -1, dir_fd = -1;
   int newlength, res;
@@ -142,7 +137,7 @@ static int sliprock_bind(struct SliprockConnection *con) {
   if (fd < 0)
     goto fail;
 
-  randombytes_buf(con->passwd, sizeof con->passwd);
+  fill_randombuf(con->passwd, sizeof con->passwd);
   struct iovec vec[] = {
       {SLIPROCK_MAGIC, sizeof SLIPROCK_MAGIC},
       {con->passwd, sizeof con->passwd},
@@ -181,7 +176,12 @@ fail:
 
 struct SliprockConnection *sliprock_socket(const char *const name,
                                            size_t const namelen) {
+  init_func();
   assert(name != NULL);
+  if (name == NULL) {
+     errno = EFAULT;
+     return NULL;
+  }
   if (namelen > 1 << 15) {
     errno = ERANGE;
     return NULL;
@@ -211,8 +211,10 @@ retry:
   int count = snprintf(connection->address.sun_path,
                        sizeof connection->address.sun_path,
                        "/tmp/sliprock.%d.", getpid());
+  if (count < 0)
+    goto fail;
   char *off = connection->address.sun_path + count;
-  size_t remaining = (int)sizeof connection->address.sun_path - count;
+  size_t remaining = sizeof connection->address.sun_path - (size_t)count;
   char *res = sodium_bin2hex(off, remaining, tmp, 8);
   assert(res == off);
   res += 16;
@@ -265,9 +267,9 @@ fail:
 }
 
 struct SliprockReceiver {
-  struct sockaddr_un sock; ///< The pathname of the socket
   char passcode[32];       ///< The passcode of the connection
   int pid;
+  struct sockaddr_un sock; ///< The pathname of the socket
 };
 
 void sliprock_close_receiver(struct SliprockReceiver *receiver) {
@@ -328,24 +330,24 @@ SliprockHandle sliprock_accept(struct SliprockConnection *connection) {
 #ifdef __linux__
   int fd = accept4(connection->fd, &_dummy, &_dummy2, SOCK_CLOEXEC);
   if (fd < 0)
-    return -1;
+    return UINT64_MAX;
 #else
   int fd = accept(connection->fd, &_dummy, &_dummy2);
   if (fd < 0)
-    return -1;
+    return UINT64_MAX;
   fcntl(fd, F_SETFD, FD_CLOEXEC);
 #endif
   if (write(fd, connection->passwd, sizeof connection->passwd) < 32) {
     close(fd);
-    return -1;
+    return UINT64_MAX;
   }
-  return fd;
+  return (SliprockHandle)fd;
 }
 
 SliprockHandle sliprock_connect(const struct SliprockReceiver *receiver) {
   int sock = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
   if (sock < 0)
-    return SLIPROCK_EOSERR;
+    return (SliprockHandle)SLIPROCK_EOSERR;
 #ifdef SLIPROCK_NO_SOCK_CLOEXEC
   if (fcntl(sock, FD_CLOEXEC))
     goto oserr;
@@ -357,13 +359,13 @@ SliprockHandle sliprock_connect(const struct SliprockReceiver *receiver) {
     goto badpass;
   if (sodium_memcmp(pw_received, receiver->passcode, 32))
     goto badpass;
-  return sock;
+  return (SliprockHandle)sock;
 badpass:
   close(sock);
-  return SLIPROCK_EBADPASS;
+  return (SliprockHandle)SLIPROCK_EBADPASS;
 oserr:
   close(sock);
-  return SLIPROCK_EOSERR;
+  return (SliprockHandle)SLIPROCK_EOSERR;
 }
 
 uint64_t sliprock_UNSAFEgetRawHandle(struct SliprockConnection *con,

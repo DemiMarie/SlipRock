@@ -5,7 +5,7 @@
 #else
 #define TCHAR char
 #endif
-#include "../src/sliprock.h"
+#include "sliprock.h"
 #include <gtest/gtest.h>
 #include <thread>
 #include <csignal>

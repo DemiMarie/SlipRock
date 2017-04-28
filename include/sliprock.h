@@ -30,8 +30,9 @@ extern "C" {
 #define SLIPROCK_EBADPASS -2
 
 #define SLIPROCK_STATIC_ASSERT(expr)                                           \
-  (0 *                                                                         \
-   sizeof(struct { int static_assertion_failed : sizeof(int) * !!(expr)-1; }))
+  (0 * sizeof(struct {                                                         \
+     int static_assertion_failed : 8 * sizeof(int) * ((2 * !!(expr)) - 1);     \
+   }))
 
 typedef struct SliprockConnection SliprockConnection;
 
