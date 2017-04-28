@@ -46,7 +46,8 @@ void sliprock_close(struct SliprockConnection *connection) {
 static struct SliprockConnection *sliprock_new(const char *const name,
                                                const size_t namelen) {
 
-  assert(namelen < (1UL << 16UL)); // arbitrary limit, but enough for anyone
+  assert(namelen <
+         (1UL << 16UL)); // arbitrary limit, but enough for anyone
 
   // Initialize libsodium
   {
@@ -69,67 +70,43 @@ static struct SliprockConnection *sliprock_new(const char *const name,
   return connection;
 }
 
-static struct passwd *get_password_entry(void) {
-  error_t e = errno;
-  struct passwd *buf = NULL;
-  size_t size = 28;
-  struct passwd *pw_ptr;
-  do {
-    assert(size < (SIZE_MAX >> 1));
-    if ((buf = realloc(buf, (size <<= 1) + sizeof(struct passwd))) == NULL) {
-      // Yes, we need to handle running out of memory.
-      return NULL;
-    }
-    pw_ptr = (struct passwd *)buf;
-    memset(pw_ptr, 0, sizeof(struct passwd));
-  } while (
-      (e = getpwuid_r(getuid(), pw_ptr, (char *)buf + sizeof(struct passwd),
-                      size, &pw_ptr)) &&
-      e == ERANGE);
-  if (pw_ptr == NULL) {
-    free(buf);
-    assert(e);
-    errno = e;
-    return NULL;
-  }
-  return pw_ptr;
-}
-
-static char *get_fname(const char *srcname, size_t len, int pid, int *innerlen,
-                       int *outerlen) {
-  struct passwd *const pw = get_password_entry();
-  if (NULL != pw) {
-    size_t newsize = len + sizeof "/.sliprock/..sock" + 20 + strlen(pw->pw_dir);
+static char *get_fname(const char *srcname, size_t len, int pid,
+                       int *innerlen, int *outerlen) {
+  void *freeptr;
+  const MyChar *const homedir = sliprock_get_home_directory(&freeptr);
+  if (NULL != homedir) {
+    const size_t homelen = strlen(homedir);
+    const size_t newsize = len + sizeof "/.sliprock/..sock" + 20 + homelen;
     if (newsize > INT_MAX) {
-      free(pw);
+      free(freeptr);
       errno = ERANGE;
       return NULL;
     }
     char *fname_buf = malloc(newsize);
     if (NULL != fname_buf) {
-      size_t homelen = strlen(pw->pw_dir);
       if (homelen > INT_MAX / 2) {
         errno = ERANGE;
       } else {
-        size_t innerlen_ = strlen(pw->pw_dir) + sizeof "/.sliprock" - 1;
+        size_t innerlen_ = homelen + sizeof "/.sliprock" - 1;
+        int newlength;
         assert(innerlen_ < INT_MAX / 2 &&
                "inner length is greater than outer length!");
-        int newlength =
+        newlength =
             snprintf(fname_buf, newsize, "%s/.sliprock/%d.%.*s.sock",
-                     pw->pw_dir, pid, (int)len, srcname);
+                     homedir, pid, (int)len, srcname);
         if (newlength >= 0) {
           errno = 0;
           if (outerlen)
             *outerlen = newlength;
           if (innerlen)
             *innerlen = (int)innerlen_;
-          free(pw);
+          free(freeptr);
           return fname_buf;
         }
       }
       free(fname_buf);
     }
-    free(pw);
+    free(freeptr);
   }
   if (innerlen)
     *innerlen = 0;
@@ -224,18 +201,18 @@ struct SliprockConnection *sliprock_socket(const char *const name,
   if (NULL == connection)
     return NULL;
   (void)SLIPROCK_STATIC_ASSERT(sizeof connection->address.sun_path >
-                               sizeof "/tmp/sliprock." - 1 + 20 + 1 + 16 + 1 +
-                                   16 + 1);
+                               sizeof "/tmp/sliprock." - 1 + 20 + 1 + 16 +
+                                   1 + 16 + 1);
 
 // Temporary buffer used for random numbers
 retry:
   randombytes_buf(tmp, sizeof tmp);
 
   int count = snprintf(connection->address.sun_path,
-                       sizeof connection->address.sun_path, "/tmp/sliprock.%d.",
-                       getpid());
+                       sizeof connection->address.sun_path,
+                       "/tmp/sliprock.%d.", getpid());
   char *off = connection->address.sun_path + count;
-  int remaining = (int)sizeof connection->address.sun_path - count;
+  size_t remaining = (int)sizeof connection->address.sun_path - count;
   char *res = sodium_bin2hex(off, remaining, tmp, 8);
   assert(res == off);
   res += 16;
@@ -265,8 +242,8 @@ retry:
 #endif
 
   /* Bind the socket */
-  if (bind(connection->fd, &connection->address, sizeof(struct sockaddr_un)) <
-      0)
+  if (bind(connection->fd, &connection->address,
+           sizeof(struct sockaddr_un)) < 0)
     goto fail;
   if (listen(connection->fd, INT_MAX) < 0)
     goto fail;
@@ -305,7 +282,8 @@ struct SliprockReceiver *sliprock_open(const char *const identifier,
   char magic[sizeof(SLIPROCK_MAGIC)];
   errno = 0;
 #ifndef _WIN32
-  assert(pid <= INT_MAX && "PID must be within range of valid process IDs!");
+  assert(pid <= INT_MAX &&
+         "PID must be within range of valid process IDs!");
 #endif
   fname = get_fname(identifier, size, (int)pid, NULL, NULL);
   if (!fname)
