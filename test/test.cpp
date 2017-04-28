@@ -8,6 +8,7 @@
 #include "../src/sliprock.h"
 #include <gtest/gtest.h>
 #include <thread>
+#include <csignal>
 
 TEST(CanCreateConnection, ItWorks) {
   int fds[2];
@@ -53,11 +54,13 @@ TEST(CanCreateConnection, ItWorks) {
 fail:
   EXPECT_EQ(true, read_succeeded);
   EXPECT_NE(receiver, nullptr);
-  if (fd >= 0)
-     EXPECT_EQ(close(fd), 0);
-  fd = -1;
+  if (fd >= 0) {
+    EXPECT_EQ(close(fd), 0);
+    thread.join();
+  } else {
+    thread.detach();
+  }
   sliprock_close_receiver(receiver);
-  thread.join();
   EXPECT_EQ(write_succeeded, true);
 
   sliprock_close(con);

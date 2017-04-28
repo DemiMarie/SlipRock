@@ -82,7 +82,7 @@ SLIPROCK_API SliprockConnection *sliprock_socket(const char *name,
 SLIPROCK_API SliprockHandle sliprock_accept(SliprockConnection *conn);
 
 /**
- * Closes a Sliprock connection, freeing underlying resources.
+ * Closes a SlipRock connection, freeing underlying resources.
  *
  * This frees any resources used by the connection.  It must always be closed to
  * avoid leaking both memory and temporary files, directories, and sockets or
@@ -120,7 +120,7 @@ typedef struct SliprockReceiver SliprockReceiver;
  *
  * \param pid The process ID of the process to be connected to.
  */
-SLIPROCK_API SliprockReceiver *sliprock_open(const char *const filename,
+SLIPROCK_API SliprockReceiver *sliprock_open(const char *const identifier,
                                              size_t size, uint32_t pid);
 
 /**

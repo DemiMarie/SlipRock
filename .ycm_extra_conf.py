@@ -46,6 +46,7 @@ flags = [
 '-Wmissing-noreturn',
 '-Wnested-externs',
 '-Wredundant-decls',
+'-Weverything',
 # THIS IS IMPORTANT! Without a "-std=<something>" flag, clang won't know which
 # language to use when compiling headers. So it will guess. Badly. So C++
 # headers will be compiled as C headers. You don't want that so ALWAYS specify
@@ -60,7 +61,7 @@ flags = [
 '-x',
 'c',
 '-I', 'src',
-'-I', '/usr/x86_64-w64-mingw32/sys-root/mingw/include/',
+#'-I', '/usr/x86_64-w64-mingw32/sys-root/mingw/include/',
 ]
 def DirectoryOfThisScript():
   return os.path.dirname( os.path.abspath( __file__ ) )

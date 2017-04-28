@@ -1,3 +1,4 @@
+#ifdef _WIN32
 #define RtlGenRandom SystemFunction036
 #define UNICODE
 #define _UNICODE
@@ -55,6 +56,20 @@ static char *nameptr(struct SliprockConnection *con) {
   return (char *)(uintptr_t)(con->file_path + con->pathlen);
 }
 #endif
+#if 0
+static void sliprock_windows_init() {
+   PVOID lpContext;
+   BOOL fIsPending;
+   BOOL fStatus = InitOnceBeginInitialize(&MyOnceInit, 0, &fIsPending, &lpContext);
+   if (!fStatus) {
+      /* TODO handle this case */
+      abort();
+   }
+   if (!fIsPending)
+      return lpContext;
+
+}
+#endif
 
 static const wchar_t *get_fname(const char *srcname, size_t len, int pid,
                                 int *innerlen, int *outerlen) {
@@ -96,7 +111,7 @@ void initNamedPipe(_Out_ struct pipe *pipe) {
   ZeroMemory(pipe, sizeof *pipe);
   if (!RtlGenRandom(random, sizeof random)) {
     /* RNG failure is not recoverable and indicates an OS bug */
-    abort();
+    return;
   }
   /* Not worried about timing attacks.  The pipe name is public anyway. */
   if ((size_t)_snwprintf_s(pipe->name, (sizeof pipe->name) / 2,
@@ -127,7 +142,7 @@ struct SliprockConnection *sliprock_socket(const char *const name,
   int innerlen;
   unsigned char tmp[16];
   struct SliprockConnection *connection = NULL;
-  HANDLE fhandle = INVALID_HANDLE_VALUE;
+  HANDLE hFile = INVALID_HANDLE_VALUE;
   SECURITY_ATTRIBUTES sec_attributes;
 
   assert(name != NULL);
@@ -141,14 +156,14 @@ struct SliprockConnection *sliprock_socket(const char *const name,
   }
   // Allocate the connection
   connection = calloc(sizeof(struct SliprockConnection), 1);
-  if (NULL != connection)
+  if (NULL == connection)
     goto fail;
   connection->path = get_fname(name, namelen, GetCurrentProcessId(), &innerlen,
                                &connection->pathlen);
-  if (NULL != connection->path)
+  if (NULL == connection->path)
     return NULL;
   initNamedPipe(&connection->pipe);
-  if (NULL != connection->pipe.handle)
+  if (NULL == connection->pipe.handle)
     goto fail;
 
   assert(connection->path[innerlen] == '\\');
@@ -165,28 +180,33 @@ struct SliprockConnection *sliprock_socket(const char *const name,
   else
      SetLastError(ERROR_SUCCESS);
   connection->path[innerlen] = '\\';
-  fhandle = CreateFileW(connection->path,
+  hFile = CreateFileW(connection->path,
                    GENERIC_READ,
                    0,
                    &sec_attributes,
                    CREATE_ALWAYS,
                    FILE_ATTRIBUTE_NORMAL,
                                NULL);
-  if (INVALID_HANDLE_VALUE == fhandle)
+  if (INVALID_HANDLE_VALUE == hFile)
      goto fail;
-  assert(0 && "Not yet implemented: writing temp file!");
-  CloseHandle(fhandle);
-  fhandle = INVALID_HANDLE_VALUE;
+  DWORD w;
+  WriteFile(hFile,
+            buf,
+            &w,
+            NULL);
+  CloseHandle(hFile);
+  hFile = INVALID_HANDLE_VALUE;
   return connection;
 fail:
   DWORD err = GetLastError();
   if (INVALID_HANDLE_VALUE != connection->pipe.handle)
      CloseHandle(connection->pipe.handle);
-  if (INVALID_HANDLE_VALUE != fhandle)
-     CloseHandle(fhandle);
+  if (INVALID_HANDLE_VALUE != hFile)
+     CloseHandle(hFile);
   DeleteFile(connection->path);
   free(connection->path);
   free(connection);
   SetLastError(err);
   return NULL;
 }
+#endif
