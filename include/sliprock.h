@@ -5,6 +5,9 @@ extern "C" {
 #elif 0
 }
 #endif
+#ifdef SLIPROCK_INTERNALS
+#include "../src/sliprock_internals.h"
+#endif
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
