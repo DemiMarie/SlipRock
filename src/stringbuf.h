@@ -28,6 +28,7 @@ StringBuf_alloc(size_t const buf_capacity) {
   if (NULL == val)
     return NULL;
   val->buf_capacity = buf_capacity;
+  return val;
 };
 
 static inline void StringBuf_add_char(struct StringBuf *buf, TCHAR c) {
@@ -45,7 +46,7 @@ static inline void StringBuf_add_decimal(struct StringBuf *buf,
     cap++;
     currentval /= 10;
   } while (currentval > 0);
-  buf->buf_length += currentval;
+  buf->buf_length += cap;
   int res = buf->buf_length;
   assert(res <= buf->buf_capacity);
   do {

@@ -19,7 +19,7 @@ typedef int OsHandle;
 struct SliprockConnection {
   size_t namelen;
   // const char path[SOCKET_PATH_LEN];
-  MyChar *path;
+  struct StringBuf *path;
   char passwd[32];
   OsHandle fd;
 #ifdef _WIN32

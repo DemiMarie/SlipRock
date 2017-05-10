@@ -14,6 +14,8 @@
 
 // Sodium
 #include <sodium.h>
+
+#include "stringbuf.h"
 struct SliprockReceiver {
   char passcode[32]; ///< The passcode of the connection
   int pid;
@@ -37,7 +39,7 @@ typedef int OsHandle;
 #ifndef SLIPROCK_UNIX_H_INCLUDED
 #define SLIPROCK_UNIX_H_INCLUDED SLIPROCK_UNIX_H_INCLUDED
 /* The maximum length of socket path (including terminating NUL) */
-#define UNIX_PATH_LEN                                                          \
+#define UNIX_PATH_LEN                                                     \
   (sizeof(struct sockaddr_un) - offsetof(struct sockaddr_un, sun_path))
 
 typedef int SliprockInternalHandle;
@@ -51,16 +53,17 @@ static const char *sliprock_get_home_directory(void **freeptr) {
   *freeptr = NULL;
   do {
     assert(size < (SIZE_MAX >> 1));
-    if ((buf = realloc(buf, (size <<= 1) + sizeof(struct passwd))) == NULL) {
+    if ((buf = (struct passwd *)realloc(
+             buf, (size <<= 1) + sizeof(struct passwd))) == NULL) {
       // Yes, we need to handle running out of memory.
       return NULL;
     }
     pw_ptr = (struct passwd *)buf;
     memset(pw_ptr, 0, sizeof(struct passwd));
-  } while (
-      (e = getpwuid_r(getuid(), pw_ptr, (char *)buf + sizeof(struct passwd),
-                      size, &pw_ptr)) &&
-      e == ERANGE);
+  } while ((e = getpwuid_r(getuid(), pw_ptr,
+                           (char *)buf + sizeof(struct passwd), size,
+                           &pw_ptr)) &&
+           e == ERANGE);
   if (pw_ptr == NULL) {
     free(buf);
     assert(e);
@@ -96,19 +99,19 @@ static OsHandle openfile(MyChar *ptr, int mode) {
   return open(ptr, mode, 0700);
 }
 
-static int create_directory_and_file(MyChar *buf) {
-  char *const terminus = strrchr(buf, '/');
+static int create_directory_and_file(struct StringBuf *buf) {
+  char *const terminus = strrchr(buf->buf, '/');
   int dir_fd = -1, file_fd = -1;
   assert(NULL != terminus && "create_directory_and_file passed a pathname "
                              "with no path separator!");
   *terminus = '\0';
-  if (mkdir(buf, 0700) && errno != EEXIST)
+  if (mkdir(buf->buf, 0700) && errno != EEXIST)
     goto fail;
-  if ((dir_fd = open(buf, O_DIRECTORY | O_RDONLY | O_CLOEXEC)) < 0)
+  if ((dir_fd = open(buf->buf, O_DIRECTORY | O_RDONLY | O_CLOEXEC)) < 0)
     goto fail;
   *terminus = '/';
-  file_fd = openat(dir_fd, terminus + 1, O_RDWR | O_CREAT | O_TRUNC | O_CLOEXEC,
-                   0600);
+  file_fd = openat(dir_fd, terminus + 1,
+                   O_RDWR | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
   if (file_fd < 0)
     goto fail;
   if (fsync(dir_fd) < 0)
@@ -126,7 +129,7 @@ fail:
   *terminus = '/';
   return -1;
 }
-#define CopyIdent(x) (x)
+#define CopyIdent(x, y) (x)
 #define FreeIdent(x) ((void)0)
 static int write_connection(OsHandle fd, struct SliprockConnection *con) {
   struct iovec vec[] = {
@@ -157,16 +160,14 @@ static void delete_socket(char *buf) {
 static void set_cloexec(OsHandle fd) { fcntl(fd, F_SETFD, FD_CLOEXEC); }
 #endif
 
-static int sliprock_fsync(int fd) {
-   return fsync(fd);
-}
+static int sliprock_fsync(int fd) { return fsync(fd); }
 
 static int make_sockdir(struct SliprockConnection *connection) {
   // Temporary buffer used for random numbers
   unsigned char tmp[16];
   (void)SLIPROCK_STATIC_ASSERT(sizeof CON_PATH(connection) >
-                               sizeof "/tmp/sliprock." - 1 + 20 + 1 + 16 + 1 +
-                                   16 + 1);
+                               sizeof "/tmp/sliprock." - 1 + 20 + 1 + 16 +
+                                   1 + 16 + 1);
 
 retry:
   if (fill_randombuf(tmp, sizeof tmp) == 0)
@@ -192,5 +193,32 @@ retry:
   return 0;
 }
 
+#define MyStrlen strlen
+
 static void remove_file(const char *filename) { unlink(filename); }
+
+
+SliprockHandle sliprock_connect(const struct SliprockReceiver *receiver) {
+  int sock = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+  if (sock < 0)
+    return (SliprockHandle)SLIPROCK_EOSERR;
+#ifdef SLIPROCK_NO_SOCK_CLOEXEC
+  set_cloexec(sock);
+#endif
+  if (connect(sock, &receiver->sock, sizeof(struct sockaddr_un)) < 0)
+    goto oserr;
+  char pw_received[32];
+  if (read(sock, pw_received, sizeof pw_received) < 32)
+    goto badpass;
+  if (sodium_memcmp(pw_received, receiver->passcode, 32))
+    goto badpass;
+  return (SliprockHandle)sock;
+badpass:
+  hclose(sock);
+  return (SliprockHandle)SLIPROCK_EBADPASS;
+oserr:
+  hclose(sock);
+  return (SliprockHandle)SLIPROCK_EOSERR;
+}
+#define UNIX_CONST const
 #endif

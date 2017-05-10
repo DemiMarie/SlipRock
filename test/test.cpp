@@ -32,7 +32,7 @@ TEST(CanCreateConnection, ItWorks) {
     write_succeeded = true;
   });
   int fd = -1;
-  system("ls ~/.sliprock");
+  system("ls -a ~/.sliprock");
   SliprockReceiver *receiver =
       sliprock_open("dummy_valr", sizeof("dummy_val") - 1, getpid());
   if (receiver == nullptr) {
