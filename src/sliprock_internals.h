@@ -1,7 +1,13 @@
 #ifndef SLIPROCK_INTERNALS_H_INCLUDED
 #define SLIPROCK_INTERNALS_H_INCLUDED SLIPROCK_INTERNALS_H_INCLUDED
 #define MAGIC_SIZE (sizeof SLIPROCK_MAGIC - 1)
-
+#ifdef SLIPROCK_TRACE
+#define MADE_IT                                                                \
+  ((void)(printf("File %s, line %d reached\n", __FILE__, __LINE__),            \
+          fflush(stdout)))
+#else
+#define MADE_IT ((void)0)
+#endif
 #ifdef _WIN32
 #include <windows.h>
 typedef wchar_t MyChar;

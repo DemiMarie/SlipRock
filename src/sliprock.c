@@ -242,6 +242,7 @@ struct SliprockConnection *sliprock_socket(const char *const name,
     free(connection);
     return NULL;
   }
+  assert(connection != NULL);
   return connection;
 }
 
