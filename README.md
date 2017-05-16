@@ -17,8 +17,8 @@ Current Status:
 - [X] Compiles on Linux
 - [X] Can send simple message on Linux
 - [X] Basic test case
-- [ ] Low-level API
-- [ ] Compiles on Windows
-- [ ] Basic testing on Windows
+- [X] Low-level API
+- [X] Compiles on Windows
+- [X] Basic testing on Windows
 - [ ] Comprehensive testing
 - [ ] Extensive tests of error conditions
