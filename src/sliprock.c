@@ -3,6 +3,7 @@
 #define _UNICODE
 #define UNICODE
 #endif
+#ifdef __linux__
 #ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wreserved-id-macro"
@@ -11,11 +12,17 @@
 #ifdef __clang__
 #pragma clang diagnostic pop
 #endif
+#endif
 #include <stdint.h>
 
 #include "sliprock.h"
 #include "sliprock_internals.h"
 #include "stringbuf.h"
+#ifdef _WIN32
+#include "sliprock_windows.h"
+#else
+#include "sliprock_unix.h"
+#endif
 #include <ctype.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -39,14 +46,7 @@ SLIPROCK_API void sliprock_close(struct SliprockConnection *connection) {
   }
   if (connection->fd != INVALID_HANDLE_VALUE)
     hclose(connection->fd);
-#ifndef _WIN32
-  if (connection->has_socket) {
-    sliprock_unlink(CON_PATH(connection));
-    rmdir(dirname(CON_PATH(connection)));
-  } else {
-    rmdir(CON_PATH(connection));
-  }
-#endif
+  delete_socket(connection);
   free(connection);
 }
 
@@ -84,11 +84,6 @@ static int sliprock_check_charset(const char *name, size_t namelen) {
   return 0;
 }
 
-#define RETURN_ERRNO(e)                                                   \
-  do                                                                      \
-    return -(errno = e);                                                  \
-  while (1)
-
 /**
  * Obtains the filename corresponding to the local file to be created.
  *
@@ -99,9 +94,8 @@ static int sliprock_check_charset(const char *name, size_t namelen) {
  *
  * \param pid is the process ID of the process that created the connection.
  */
-static struct StringBuf *get_fname(const char *const srcname,
-                                   const size_t size, int pid,
-                                   int *innerlen, int *outerlen) {
+static struct StringBuf *get_fname(const char *const srcname, const size_t size,
+                                   uint32_t pid, int *innerlen, int *outerlen) {
   void *freeptr = NULL;
   struct StringBuf *fname_buf = NULL;
 
@@ -164,35 +158,38 @@ success:
 }
 
 static int sliprock_bind(struct SliprockConnection *con) {
-  int e;
+  int e = 0, created_file = 0;
   OsHandle fd = (OsHandle)-1;
   struct StringBuf *fname_buf;
   int newlength, res;
+  /* Checked in sliprock_socket() */
   assert(sliprock_check_charset(con->name, con->namelen) == 0 &&
          "Bogus characters in connection name should have been detected "
          "earlier!");
   fname_buf =
-      get_fname(con->name, con->namelen, getpid(), &res, &newlength);
+      get_fname(con->name, con->namelen, (uint32_t)getpid(), &res, &newlength);
   if (NULL == fname_buf)
-    goto fail;
+    return -1;
   con->path = fname_buf;
-  if (fill_randombuf(con->passwd, sizeof con->passwd) < 0)
-#ifndef _WIN32
-    abort();
-#else
-    goto fail;
-#endif
+  if (fill_randombuf(con->passwd, sizeof con->passwd) < 0) {
+    /* Not possible on *nix (randombytes_buf() from libsodium aborts)
+     * But documented as being possible on Windows (though I cannot
+     * imagine under what circumstances). */
+    return -1;
+  }
   fd = create_directory_and_file(fname_buf);
   if (INVALID_HANDLE_VALUE == fd)
     goto fail;
+  created_file = 1;
   (void)SLIPROCK_STATIC_ASSERT(sizeof SLIPROCK_MAGIC - 1 == 16);
   if (write_connection(fd, con) < 0)
-    goto fail; // Write failed
+    goto fail;
+  /* Write failed */
   if (sliprock_fsync(fd) < 0)
     goto fail;
   if (hclose(fd) < 0) {
-    // Don't double-close – the state of the FD is unspecified.  Better to
-    // leak an FD than close an FD that other code could be using.
+    /* Don't double-close – the state of the FD is unspecified.  Better to */
+    /* leak an FD than close an FD that other code could be using. */
     fd = INVALID_HANDLE_VALUE;
     goto fail;
   }
@@ -201,17 +198,20 @@ static int sliprock_bind(struct SliprockConnection *con) {
 fail:
   e = errno;
   if (fd != INVALID_HANDLE_VALUE) {
-    assert(NULL != fname_buf);
     hclose(fd);
-    remove_file(fname_buf->buf);
+  }
+  if (created_file) {
+    assert(NULL != fname_buf);
+    sliprock_unlink(fname_buf->buf);
   }
   free(fname_buf);
   con->path = NULL;
-  return errno = e;
+  return -(errno = e);
 }
 
 struct SliprockConnection *sliprock_socket(const char *const name,
                                            size_t const namelen) {
+  struct SliprockConnection *connection;
   if (init_func() < 0)
     return NULL;
   assert(name != NULL);
@@ -223,51 +223,34 @@ struct SliprockConnection *sliprock_socket(const char *const name,
     errno = ERANGE;
     return NULL;
   }
+  /* This check ensures that connection names are human-readable */
+  /* TODO: allow unicode */
   if (sliprock_check_charset(name, namelen) < 0)
     return NULL;
-  // Allocate the connection
-  struct SliprockConnection *connection = sliprock_new(name, namelen);
+  /* Allocate the connection */
+  connection = sliprock_new(name, namelen);
   if (NULL == connection)
     return NULL;
-
-  if (make_sockdir(connection) < 0)
-    goto no_directory;
+  /* Must do this first - otherwise connection->sock is filled with zeros
+   * when write_connection() is called, and we get a confusing error
+   * ("connection refused") from sliprock_open() */
+  if (sliprock_bind_os(connection) < 0)
+    return NULL;
   if ((errno = sliprock_bind(connection))) {
-    goto no_binding;
+    /* Don't leave a directory and socket lying around in /tmp */
+    delete_socket(connection);
+    free(connection);
+    return NULL;
   }
-  // Establish the socket
-  connection->fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
-  if (INVALID_HANDLE_VALUE == connection->fd)
-    goto bind_failed;
-
-// Set close-on-exec if it could not have been done atomically.
-#ifdef SLIPROCK_NO_SOCK_CLOEXEC
-  set_cloexec(fd);
-#endif
-  /* Bind the socket */
-  if (bind(connection->fd, &connection->address,
-           sizeof(struct sockaddr_un)) < 0)
-    goto bind_failed;
-  if (listen(connection->fd, INT_MAX) == 0)
-    return connection;
-bind_failed:
-  hclose(connection->fd);
-  if (NULL != connection->path) {
-    sliprock_unlink(connection->path->buf);
-    free(connection->path);
-  }
-no_binding:
-  delete_socket(CON_PATH(connection));
-no_directory:
-  free(connection);
-  return NULL;
+  return connection;
 }
 
-SLIPROCK_API void
-sliprock_close_receiver(struct SliprockReceiver *receiver) {
+// See documentation in sliprock.h
+SLIPROCK_API void sliprock_close_receiver(struct SliprockReceiver *receiver) {
   free(receiver);
 }
 
+// See documentation in sliprock.h
 SLIPROCK_API struct SliprockReceiver *
 sliprock_open(const char *const identifier, size_t size, uint32_t pid) {
   int err;
@@ -279,10 +262,9 @@ sliprock_open(const char *const identifier, size_t size, uint32_t pid) {
     return NULL;
   errno = 0;
 #ifndef _WIN32
-  assert(pid <= INT_MAX &&
-         "PID must be within range of valid process IDs!");
+  assert(pid <= INT_MAX && "PID must be within range of valid process IDs!");
 #endif
-  fname = get_fname(identifier, size, (int)pid, NULL, NULL);
+  fname = get_fname(identifier, size, pid, NULL, NULL);
   if (!fname)
     return NULL;
   errno = 0;
@@ -300,8 +282,6 @@ sliprock_open(const char *const identifier, size_t size, uint32_t pid) {
   }
   if (memcmp(magic, SLIPROCK_MAGIC, sizeof SLIPROCK_MAGIC - 1))
     goto fail;
-  if (receiver->sock.sun_family != AF_UNIX)
-    goto fail;
   hclose(fd);
   free(fname);
   return receiver;
@@ -313,30 +293,6 @@ fail:
   sliprock_close_receiver(receiver);
   errno = err;
   return NULL;
-}
-
-SLIPROCK_API SliprockHandle
-sliprock_accept(struct SliprockConnection *connection) {
-  assert(INVALID_HANDLE_VALUE != connection->fd);
-#ifndef _WIN32
-  struct sockaddr_un _dummy;
-#endif
-  socklen_t _dummy2 = sizeof(struct sockaddr_un);
-#ifdef __linux__
-  OsHandle fd = accept4(connection->fd, &_dummy, &_dummy2, SOCK_CLOEXEC);
-  if (INVALID_HANDLE_VALUE == fd)
-    return fd;
-#else
-  OsHandle fd = accept(connection->fd, &_dummy, &_dummy2);
-  if (INVALID_HANDLE_VALUE == fd)
-    return fd;
-  set_cloexec(fd);
-#endif
-  if (write(fd, connection->passwd, sizeof connection->passwd) < 32) {
-    hclose(fd);
-    return INVALID_HANDLE_VALUE;
-  }
-  return (SliprockHandle)fd;
 }
 
 SLIPROCK_API uint64_t sliprock_UNSAFEgetRawHandle(

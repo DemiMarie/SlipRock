@@ -43,7 +43,7 @@ flags = [
 # a "-std=<something>".
 # For a C project, you would set this to something like 'c99' instead of
 # 'c++11'.
-'-std=c89',
+'-std=c99',
 # ...and the same thing goes for the magic -x option which specifies the
 # language that the files to be compiled are written in. This is mostly
 # relevant for c++ headers.
@@ -53,7 +53,7 @@ flags = [
 ]
 def DirectoryOfThisScript():
   return os.path.dirname( os.path.abspath( __file__ ) )
-compilation_database_folder = os.path.join(DirectoryOfThisScript(), '../build-sliprock')
+compilation_database_folder = '/dev/null/etc'
 
 # Set this to the absolute path to the folder (NOT the file!) containing the
 # compile_commands.json file to use that instead of 'flags'. See here for
@@ -128,9 +128,13 @@ def GetCompilationInfoForFile( filename ):
 
 
 def FlagsForFile( filename, **kwargs ):
+  p = os.path
+  fname = p.basename(filename)
   if database:
     # Bear in mind that compilation_info.compiler_flags_ does NOT return a
     # python list, but a "list-like" StringVec object
+    if fname == 'sliprock_unix.h' or fname == 'sliprock_windows.h':
+      filename = p.join(p.dirname(filename), 'sliprock.c')
     compilation_info = GetCompilationInfoForFile( filename )
     if not compilation_info:
       return None
@@ -142,6 +146,11 @@ def FlagsForFile( filename, **kwargs ):
   else:
     relative_to = DirectoryOfThisScript()
     final_flags = MakeRelativePathsInFlagsAbsolute( flags, relative_to )
+  if fname == 'sliprock_windows.h':
+    assert False
+    final_flags += (
+            '-I/usr/x86_64-w64-mingw32/sys-root/mingw/include',
+            '-fms-extensions')
 
   return {
     'flags': final_flags,

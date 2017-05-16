@@ -1,7 +1,0 @@
-enable_language(CXX)
-enable_testing()
-find_package(GTest REQUIRED)
-include_directories(${GTEST_INCLUDE_DIRS})
-add_executable(mytest test.cpp)
-target_link_libraries(mytest ${GTEST_BOTH_LIBRARIES} GTest::GTest GTest::Main sliprock)
-add_test(main mytest)

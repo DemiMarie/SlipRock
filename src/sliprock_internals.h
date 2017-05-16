@@ -1,5 +1,6 @@
 #ifndef SLIPROCK_INTERNALS_H_INCLUDED
 #define SLIPROCK_INTERNALS_H_INCLUDED SLIPROCK_INTERNALS_H_INCLUDED
+#define MAGIC_SIZE (sizeof SLIPROCK_MAGIC - 1)
 
 #ifdef _WIN32
 #include <windows.h>
@@ -12,27 +13,69 @@ typedef HANDLE OsHandle;
 typedef char MyChar;
 typedef int OsHandle;
 #endif
-
-#if 4294967295ULL + 1 != 1ULL << 32
-#error impossible
-#endif
+#define PIPE_SIZE (sizeof "\\\\?\\pipe\\SlipRock\\4294967295\\" + 16)
+/* The actual connection struct */
 struct SliprockConnection {
   size_t namelen;
-  // const char path[SOCKET_PATH_LEN];
+  /* const char path[SOCKET_PATH_LEN]; */
   struct StringBuf *path;
   char passwd[32];
   OsHandle fd;
 #ifdef _WIN32
-  wchar_t pipename[sizeof "\\\\?\\pipe\\SlipRock\\4294967295\\" + 16];
+  wchar_t pipename[PIPE_SIZE];
 #else
   struct sockaddr_un address;
 #endif
   char has_socket;
   char name[];
 };
-#ifdef _WIN32
-#include "sliprock_windows.h"
+
+/* A receiver for SlipRock connections */
+struct SliprockReceiver {
+  char passcode[32]; /**< The passcode of the connection */
+  int pid;
+#ifndef _WIN32
+  struct sockaddr_un sock; /**< The pathname of the socket */
 #else
-#include "sliprock_unix.h"
+  wchar_t sock[PIPE_SIZE];
 #endif
+};
+
+
+/* The "fuel" mechanism, used to test for robustness in error conditions.
+ */
+#ifdef SLIPROCK_DEBUG_FUEL
+#include <stdatomic.h>
+_Atomic ssize_t sliprock_fuel;
+#define CHECK_FUEL(x)                                                     \
+  if (atomic_fetch_add(&sliprock_fuel, -1) < 0) {                         \
+    x;                                                                    \
+  } else                                                                  \
+    do {                                                                  \
+    } while (0)
+#define CHECK_FUEL_EXPR(error, expr)                                      \
+  (atomic_fetch_add(&sliprock_fuel, -1) < 0 ? (error) : (expr))
+#define malloc sliprock_malloc
+#define realloc sliprock_realloc
+#define calloc sliprock_calloc
+static void *sliprock_malloc(size_t size) {
+  CHECK_FUEL(return NULL);
+  return malloc(size);
+}
+static void *sliprock_calloc(size_t size1, size_t size2) {
+  CHECK_FUEL(return NULL);
+  return calloc(size1, size2);
+}
+static void *sliprock_realloc(void *ptr, size_t size) {
+  CHECK_FUEL(return NULL);
+  return realloc(ptr, size);
+}
+
+#else
+#define CHECK_FUEL(x)                                                     \
+  do {                                                                    \
+  } while (0)
+#define CHECK_FUEL_EXPR(x, y) (y)
+#endif
+
 #endif
