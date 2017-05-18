@@ -6,8 +6,7 @@ addons:
     - curl
 
 env:
-- LD_LIBRARY_PATH: usr/lib
-- LIBRARY_PATH: usr/lib
+- LD_LIBRARY_PATH='usr/lib' LIBRARY_PATH='usr/lib'
 
 script:
 - ./travis-ci.sh

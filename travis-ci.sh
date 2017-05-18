@@ -5,7 +5,7 @@ mkdir build-gtest
 cd build-gtest
 curl -o release-1.8.0.zip \
    https://github.com/google/googletest/archive/release-1.8.0.zip
-unzip build-gtest
+unzip -d build-gtest release-1.8.0.zip
 cmake -DCMAKE_PREFIX_PATH=.. .
 make
 make install
