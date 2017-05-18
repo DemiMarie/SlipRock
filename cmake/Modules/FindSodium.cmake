@@ -42,6 +42,8 @@ if(NOT (sodium_USE_STATIC_LIBS EQUAL sodium_USE_STATIC_LIBS_LAST))
     set(sodium_USE_STATIC_LIBS_LAST ${sodium_USE_STATIC_LIBS} CACHE INTERNAL "internal change tracking variable")
 endif()
 
+set(sodium_DIR "$ENV{sodium_DIR}" CACHE FILEPATH "sodium install directory")
+mark_as_advanced(sodium_DIR)
 
 ########################################################################
 # UNIX
@@ -62,18 +64,16 @@ if (UNIX)
         HINTS ${${XPREFIX}_INCLUDE_DIRS}
     )
     find_library(sodium_LIBRARY_DEBUG NAMES ${${XPREFIX}_LIBRARIES} sodium
-        HINTS ${${XPREFIX}_LIBRARY_DIRS}
+        HINTS ${${XPREFIX}_LIBRARY_DIRS} ${sodium_DIR}
     )
     find_library(sodium_LIBRARY_RELEASE NAMES ${${XPREFIX}_LIBRARIES} sodium
-        HINTS ${${XPREFIX}_LIBRARY_DIRS}
+        HINTS ${${XPREFIX}_LIBRARY_DIRS} ${sodium_DIR}
     )
 
 
 ########################################################################
 # Windows
 elseif (WIN32)
-    set(sodium_DIR "$ENV{sodium_DIR}" CACHE FILEPATH "sodium install directory")
-    mark_as_advanced(sodium_DIR)
 
     find_path(sodium_INCLUDE_DIR sodium.h
         HINTS ${sodium_DIR}
