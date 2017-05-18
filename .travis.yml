@@ -1,0 +1,13 @@
+language: [c, c++]
+addons:
+  apt:
+    packages:
+    - cmake
+    - curl
+
+env:
+- LD_LIBRARY_PATH: usr/lib
+- LIBRARY_PATH: usr/lib
+
+script:
+- ./travis-ci.sh
