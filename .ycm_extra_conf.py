@@ -35,8 +35,6 @@ import ycm_core
 # compilation database set (by default, one is not set).
 # CHANGE THIS LIST OF FLAGS. YES, THIS IS THE DROID YOU HAVE BEEN LOOKING FOR.
 flags = [
-'-Weverything',
-'-Werror',
 # THIS IS IMPORTANT! Without a "-std=<something>" flag, clang won't know which
 # language to use when compiling headers. So it will guess. Badly. So C++
 # headers will be compiled as C headers. You don't want that so ALWAYS specify
@@ -48,7 +46,9 @@ flags = [
 # language that the files to be compiled are written in. This is mostly
 # relevant for c++ headers.
 # For a C project, you would set this to 'c' instead of 'c++'.
-'-x', 'c', '-Isrc', '-Iinclude'
+'-x', 'c', '-I', 'src', '-I', 'include'
+'-Weverything',
+'-Werror',
 #'-I', '/usr/x86_64-w64-mingw32/sys-root/mingw/include/',
 ]
 def DirectoryOfThisScript():
@@ -131,6 +131,7 @@ def FlagsForFile( filename, **kwargs ):
   p = os.path
   fname = p.basename(filename)
   if database:
+    assert False
     # Bear in mind that compilation_info.compiler_flags_ does NOT return a
     # python list, but a "list-like" StringVec object
     if fname == 'sliprock_unix.h' or fname == 'sliprock_windows.h':
@@ -146,11 +147,15 @@ def FlagsForFile( filename, **kwargs ):
   else:
     relative_to = DirectoryOfThisScript()
     final_flags = MakeRelativePathsInFlagsAbsolute( flags, relative_to )
-  if fname == 'sliprock_windows.h':
-    assert False
+  if 'windows' in fname or 'state_machine' in fname:
     final_flags += (
             '-I/usr/x86_64-w64-mingw32/sys-root/mingw/include',
             '-fms-extensions')
+  if p.basename(p.dirname(filename)) == 'wip':
+    final_flags += ('-Iwip', '-fms-extensions', '-target=x86_64-w64-mingw32')
+  if p.splitext(fname)[1] == '.cpp':
+    final_flags[final_flags.index('-std=c99')] = '-std=c++11'
+    final_flags[final_flags.index('c')] = 'c++'
 
   return {
     'flags': final_flags,
