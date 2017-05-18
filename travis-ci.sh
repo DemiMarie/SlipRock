@@ -5,7 +5,7 @@ curl -L -o release-1.8.0.zip \
    https://github.com/google/googletest/archive/release-1.8.0.zip
 unzip release-1.8.0.zip
 cd googletest-release-1.8.0
-cmake -DCMAKE_PREFIX_PATH=.. .
+cmake -DCMAKE_INSTALL_PREFIX=.. .
 make
 make install
 cd ..
