@@ -227,16 +227,15 @@ struct SliprockConnection *sliprock_socket(const char *const name,
   /* Must do this first - otherwise connection->sock is filled with zeros
    * when write_connection() is called, and we get a confusing error
    * ("connection refused") from sliprock_open() */
-  if (sliprock_bind_os(connection) < 0)
-    return NULL;
-  if ((errno = sliprock_bind(connection))) {
-    /* Don't leave a directory and socket lying around in /tmp */
+  if (sliprock_bind_os(connection) == 0) {
+    if ((errno = sliprock_bind(connection)) == 0) {
+      /* Don't leave a directory and socket lying around in /tmp */
+      return connection;
+    }
     delete_socket(connection);
-    free(connection);
-    return NULL;
   }
-  assert(connection != NULL);
-  return connection;
+  free(connection);
+  return NULL;
 }
 
 // See documentation in sliprock.h
@@ -252,6 +251,7 @@ sliprock_open(const char *const identifier, size_t size, uint32_t pid) {
   OsHandle fd;
   struct SliprockReceiver *receiver = NULL;
   struct StringBuf fname;
+  memset(&fname, 0, sizeof fname);
   char magic[sizeof(SLIPROCK_MAGIC) - 1];
   if (sliprock_check_charset(identifier, size) != 0)
     return NULL;
