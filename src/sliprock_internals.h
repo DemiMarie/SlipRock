@@ -19,6 +19,8 @@ typedef HANDLE OsHandle;
 typedef char MyChar;
 typedef int OsHandle;
 #endif
+#include "stringbuf.h"
+
 #define PIPE_SIZE (sizeof "\\\\?\\pipe\\SlipRock\\4294967295\\" + 16)
 /* The actual connection struct */
 struct SliprockConnection {
