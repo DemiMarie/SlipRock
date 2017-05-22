@@ -2,15 +2,14 @@
 #define _UNICODE _UNICODE
 #define UNICODE UNICODE
 #define main _wmain
-#else
-#define TCHAR char
 #endif
 #include "sliprock.h"
 #include "sliprock_internals.h"
+#include "stringbuf.h"
 #include <csignal>
 #include <exception>
-#include <stdexcept>
 #include <gtest/gtest.h>
+#include <stdexcept>
 #include <thread>
 
 #ifdef _WIN32
@@ -60,8 +59,8 @@ TEST(CanCreateConnection, ItWorks) {
   });
   HANDLE fd = INVALID_HANDLE_VALUE;
   system("ls -a ~/.sliprock");
-  SliprockReceiver *receiver =
-      sliprock_open("dummy_valr", sizeof("dummy_val") - 1, getpid());
+  SliprockReceiver *receiver = sliprock_open(
+      "dummy_valr", sizeof("dummy_val") - 1, (uint32_t)getpid());
   if (receiver == nullptr) {
     perror("sliprock_open");
     goto fail;
