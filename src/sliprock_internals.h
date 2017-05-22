@@ -2,8 +2,8 @@
 #define SLIPROCK_INTERNALS_H_INCLUDED SLIPROCK_INTERNALS_H_INCLUDED
 #define MAGIC_SIZE (sizeof SLIPROCK_MAGIC - 1)
 #ifdef SLIPROCK_TRACE
-#define MADE_IT                                                                \
-  ((void)(printf("File %s, line %d reached\n", __FILE__, __LINE__),            \
+#define MADE_IT                                                           \
+  ((void)(printf("File %s, line %d reached\n", __FILE__, __LINE__),       \
           fflush(stdout)))
 #else
 #define MADE_IT ((void)0)
@@ -24,7 +24,7 @@ typedef int OsHandle;
 struct SliprockConnection {
   size_t namelen;
   /* const char path[SOCKET_PATH_LEN]; */
-  struct StringBuf *path;
+  struct StringBuf path;
   char passwd[32];
   OsHandle fd;
 #ifdef _WIN32
@@ -38,7 +38,7 @@ struct SliprockConnection {
 
 /* A receiver for SlipRock connections */
 struct SliprockReceiver {
-  char passcode[32]; /**< The passcode of the connection */
+  unsigned char passcode[32]; /**< The passcode of the connection */
   int pid;
 #ifndef _WIN32
   struct sockaddr_un sock; /**< The pathname of the socket */
@@ -47,6 +47,9 @@ struct SliprockReceiver {
 #endif
 };
 
+/* Cryptographic random number generation */
+__attribute__((warn_unused_result)) int
+sliprock_randombytes_sysrandom_buf(void *const buf, const size_t size);
 
 /* The "fuel" mechanism, used to test for robustness in error conditions.
  */
@@ -83,5 +86,16 @@ static void *sliprock_realloc(void *ptr, size_t size) {
   } while (0)
 #define CHECK_FUEL_EXPR(x, y) (y)
 #endif
+#ifdef _MSC_VER
+#define NOINLINE __declspec(noinline)
+#elif defined __GNUC__
+#define NOINLINE __attribute__((noinline))
+#else
+#error dont know how to tell the compiler not to inline this
+#endif
+NOINLINE int
+sliprock_secure_compare_memory(const volatile unsigned char *const buf1,
+                               const volatile unsigned char *const buf2,
+                               size_t len);
 
 #endif

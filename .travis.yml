@@ -1,11 +1,11 @@
-language: [c, c++]
+language: c
 addons:
   apt:
     packages:
     - cmake
     - curl
-    - libsodium-dev
-sudo: required
+sudo: false
+
 env:
    global:
    - "LD_LIBRARY_PATH='usr/lib' LIBRARY_PATH='usr/lib'"

@@ -30,7 +30,8 @@ typedef HANDLE OsHandle;
 static void sliprock_strerror(void) {
   wchar_t *buf;
   DWORD buflen;
-  FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_IGNORE_INSERTS |
+  FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
+                    FORMAT_MESSAGE_IGNORE_INSERTS |
                     FORMAT_MESSAGE_FROM_SYSTEM,
                 NULL, GetLastError(), 0, (LPTSTR)&buf, 0, NULL);
   WriteConsoleW(GetStdHandle(-12), buf, wcslen(buf), &buflen, NULL);
@@ -69,7 +70,8 @@ static OsHandle openfile(MyChar *path, int mode) {
 #define CON_PATH(con) ((con)->pipename)
 #define SLIPROCK_MAGIC "\0SlipRock\n\rPIPE\x1a"
 extern BOOLEAN RtlGenRandom(_Out_ PVOID random_buf, _In_ ULONG buflen);
-/* NOTE: keep this in sync with the size of the buffer in sliprock_internals.h
+/* NOTE: keep this in sync with the size of the buffer in
+ * sliprock_internals.h
  */
 static int fill_randombuf(void *buf, size_t size) {
   return RtlGenRandom(buf, size) ? 0 : -1;
@@ -115,7 +117,9 @@ static OsHandle create_directory_and_file(struct StringBuf *path) {
   abort(); // impossible
 }
 
-static int sliprock_fsync(OsHandle fd) { return FlushFileBuffers(fd) ? 0 : -1; }
+static int sliprock_fsync(OsHandle fd) {
+  return FlushFileBuffers(fd) ? 0 : -1;
+}
 
 #if 0
 static int get_errno(void) {
@@ -134,16 +138,16 @@ static int set_errno(DWORD err) {
 #define T(x) (L##x)
 
 static wchar_t *CopyIdent(const char *identifier, const size_t size) {
-  int res = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, identifier, size,
-                                NULL, 0);
+  int res = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, identifier,
+                                size, NULL, 0);
   wchar_t *identifier_;
   if (0 == res)
     return NULL;
   identifier_ = calloc(res, sizeof(wchar_t));
   if (identifier_ == NULL)
     return NULL;
-  if (0 == MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, identifier, size,
-                               identifier_, (size_t)res)) {
+  if (0 == MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, identifier,
+                               size, identifier_, (size_t)res)) {
     free(identifier_);
     return NULL;
   }
@@ -170,7 +174,8 @@ static int write_connection(OsHandle fd, struct SliprockConnection *con) {
     return -1;
   return 0;
 }
-static HANDLE sliprock_get_handle_for_connection(struct SliprockConnection *connection) {
+static HANDLE
+sliprock_get_handle_for_connection(struct SliprockConnection *connection) {
   SECURITY_ATTRIBUTES sec_attributes;
   /* Can't hurt.  Might help (IIRC several Windows API structs must be
    * zeroed).
@@ -179,11 +184,13 @@ static HANDLE sliprock_get_handle_for_connection(struct SliprockConnection *conn
 
   sec_attributes.nLength = sizeof sec_attributes;
   sec_attributes.bInheritHandle = 0; /* not necessary – already zeroed */
-  return CreateNamedPipeW(
-      connection->pipename, PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE,
-      PIPE_TYPE_MESSAGE | PIPE_REJECT_REMOTE_CLIENTS, PIPE_UNLIMITED_INSTANCES,
-      1U << 12, /* Small to preserve nonpaged pool */
-      1U << 12, 0, &sec_attributes);
+  return CreateNamedPipeW(connection->pipename,
+                          PIPE_ACCESS_DUPLEX |
+                              FILE_FLAG_FIRST_PIPE_INSTANCE,
+                          PIPE_TYPE_MESSAGE | PIPE_REJECT_REMOTE_CLIENTS,
+                          PIPE_UNLIMITED_INSTANCES,
+                          1U << 12, /* Small to preserve nonpaged pool */
+                          1U << 12, 0, &sec_attributes);
 }
 static int sliprock_bind_os_raw(struct SliprockConnection *connection,
                                 HANDLE *pipe) {
@@ -192,9 +199,10 @@ retry:
   if (fill_randombuf(random, sizeof random) < 0)
     return -1;
   assert(connection->pipename);
-  int res = swprintf_s(
-      connection->pipename, sizeof connection->pipename / sizeof(wchar_t),
-      L"\\\\?\\pipe\\SlipRock\\%d\\%I64x", GetCurrentProcessId(), random[0]);
+  int res = swprintf_s(connection->pipename,
+                       sizeof connection->pipename / sizeof(wchar_t),
+                       L"\\\\?\\pipe\\SlipRock\\%d\\%I64x",
+                       GetCurrentProcessId(), random[0]);
   if (res == -1) {
     assert(0);
     abort();
@@ -241,12 +249,14 @@ fail:
   return (SliprockHandle)INVALID_HANDLE_VALUE;
 }
 
-static ssize_t read_receiver(OsHandle fd, struct SliprockReceiver *receiver,
+static ssize_t read_receiver(OsHandle fd,
+                             struct SliprockReceiver *receiver,
                              char magic[static MAGIC_SIZE]) {
   char buf[sizeof SLIPROCK_MAGIC - 1 + sizeof receiver->passcode +
            sizeof receiver->sock];
   char *buf2 = buf;
-  (void)SLIPROCK_STATIC_ASSERT(MAGIC_SIZE == sizeof SLIPROCK_MAGIC - 1), (void) magic;
+  (void)SLIPROCK_STATIC_ASSERT(MAGIC_SIZE == sizeof SLIPROCK_MAGIC - 1),
+      (void)magic;
   DWORD read;
   if (ReadFile(fd, buf, sizeof buf, &read, NULL) == 0)
     return -1;
@@ -260,21 +270,6 @@ static ssize_t read_receiver(OsHandle fd, struct SliprockReceiver *receiver,
 
 static int sliprock_bind_os(struct SliprockConnection *connection) {
   return sliprock_bind_os_raw(connection, &connection->fd);
-}
-
-#ifdef _MSC_VER
-#define NOINLINE __declspec(noinline)
-#elif defined __GNUC__
-#define NOINLINE __attribute__((noinline))
-#else
-#error dont know how to tell the compiler not to inline this
-#endif
-static NOINLINE int secure_compare_memory(const char *buf1, const char *buf2,
-                                          size_t len) {
-  int res = 0;
-  for (size_t i = 0; i < len; ++i)
-    res |= buf1[i] ^ buf2[i];
-  return res;
 }
 
 SliprockHandle sliprock_connect(const struct SliprockReceiver *receiver) {

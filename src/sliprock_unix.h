@@ -18,14 +18,12 @@
 #include <libgen.h>
 #include <pthread.h>
 #include <pwd.h>
+#include <stdio.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
-
-/* Sodium */
-#include <sodium.h>
 
 #include "sliprock_internals.h"
 #include "stringbuf.h"
@@ -34,7 +32,7 @@
 
 #define sliprock_unlink unlink
 #define INVALID_HANDLE_VALUE -1
-static pthread_once_t once = PTHREAD_ONCE_INIT;
+
 #define SLIPROCK_MAGIC "\0SlipRock\n\rUNIX\x1a"
 #ifndef SOCK_CLOEXEC
 #define SLIPROCK_NO_SOCK_CLOEXEC
@@ -45,7 +43,7 @@ static pthread_once_t once = PTHREAD_ONCE_INIT;
 #define T(x) ("" x)
 
 /* The maximum length of socket path (including terminating NUL) */
-#define UNIX_PATH_LEN                                                          \
+#define UNIX_PATH_LEN                                                     \
   (sizeof(struct sockaddr_un) - offsetof(struct sockaddr_un, sun_path))
 
 typedef int SliprockInternalHandle;
@@ -133,11 +131,12 @@ static const char *sliprock_get_home_directory(void **freeptr) {
     }
     pw_ptr = (struct passwd *)buf;
     memset(pw_ptr, 0, sizeof(struct passwd));
-  } while (CHECK_FUEL_EXPR(
-      (pw_ptr = NULL, e = ENOSYS),
-      ((e = getpwuid_r(getuid(), pw_ptr, (char *)buf + sizeof(struct passwd),
-                       size, &pw_ptr)) &&
-       e == ERANGE)));
+  } while (
+      CHECK_FUEL_EXPR((pw_ptr = NULL, e = ENOSYS),
+                      ((e = getpwuid_r(getuid(), pw_ptr,
+                                       (char *)buf + sizeof(struct passwd),
+                                       size, &pw_ptr)) &&
+                       e == ERANGE)));
   if (pw_ptr == NULL) {
     free(buf);
     assert(e);
@@ -146,26 +145,6 @@ static const char *sliprock_get_home_directory(void **freeptr) {
   }
   *freeptr = pw_ptr;
   return pw_ptr->pw_dir;
-}
-static int is_sodium_initialized;
-static void init_libsodium(void) { is_sodium_initialized = sodium_init(); }
-
-// Initialize libsodium
-static int init_func(void) {
-  int initialized = pthread_once(&once, &init_libsodium);
-  if (initialized) {
-    errno = initialized;
-    return -1;
-  }
-  if (is_sodium_initialized == -1)
-    return -1;
-  return 0;
-}
-
-/* Fill p with size bytes of cryptographically-secure random numbers */
-static int fill_randombuf(void *p, size_t size) {
-  randombytes_buf(p, size);
-  return 1;
 }
 
 /* Create a directory with suitable permissions */
@@ -189,8 +168,8 @@ static int create_directory_and_file(struct StringBuf *buf) {
   if ((dir_fd = open(buf->buf, O_DIRECTORY | O_RDONLY | O_CLOEXEC)) < 0)
     goto fail;
   *terminus = '/';
-  file_fd = openat(dir_fd, terminus + 1, O_RDWR | O_CREAT | O_TRUNC | O_CLOEXEC,
-                   0600);
+  file_fd = openat(dir_fd, terminus + 1,
+                   O_RDWR | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
   if (file_fd < 0)
     goto fail;
   /* According to the man page, this is necessary to ensure that other
@@ -238,8 +217,9 @@ static void delete_socket(struct SliprockConnection *connection) {
 }
 
 /* Read a receiver into a SliprockReceiver struct */
-static ssize_t read_receiver(OsHandle fd, struct SliprockReceiver *receiver,
-                             char magic[static sizeof SLIPROCK_MAGIC - 1]) {
+static ssize_t
+read_receiver(OsHandle fd, struct SliprockReceiver *receiver,
+              char magic[static sizeof SLIPROCK_MAGIC - 1]) {
   struct iovec vecs[] = {
       {magic, sizeof SLIPROCK_MAGIC - 1},
       {receiver->passcode, sizeof receiver->passcode},
@@ -258,27 +238,22 @@ static int sliprock_fsync(int fd) { return fsync(fd); }
 /* Make a directory to hold a socket, and fill connection with the path */
 static int make_sockdir(struct SliprockConnection *connection) {
   /* Temporary buffer used for random numbers */
-  int count;
-  unsigned char tmp[16];
+  uint64_t tmp[2];
   (void)SLIPROCK_STATIC_ASSERT(sizeof CON_PATH(connection) >
-                               sizeof "/tmp/sliprock." - 1 + 20 + 1 + 16 + 1 +
-                                   16 + 1);
+                               sizeof "/tmp/sliprock." - 1 + 20 + 1 + 16 +
+                                   1 + 16 + 1);
 
 retry:
   CHECK_FUEL(return -1);
-  if (fill_randombuf(tmp, sizeof tmp) == 0)
+  if (sliprock_randombytes_sysrandom_buf(tmp, sizeof tmp) < 0)
     return -1;
   CHECK_FUEL(return -1);
-  count = snprintf(CON_PATH(connection), sizeof CON_PATH(connection),
-                   "/tmp/sliprock.%d.", getpid());
-  if (count < 0)
-    return -1;
-  char *off = CON_PATH(connection) + count;
-  size_t remaining = sizeof CON_PATH(connection) - (size_t)count;
-  char *res = sodium_bin2hex(off, remaining, tmp, 8);
-  assert(res == off);
-  res += 16;
-  remaining -= 16;
+  struct StringBuf buf;
+  StringBuf_init(&buf, sizeof CON_PATH(connection), 0,
+                 CON_PATH(connection));
+  StringBuf_add_literal(&buf, "/tmp/sliprock.");
+  StringBuf_add_decimal(&buf, (uintptr_t)getpid());
+  StringBuf_add_char(&buf, '.');
   CHECK_FUEL(return -1);
   if (makedir(CON_PATH(connection)) < 0) {
     if (errno == EEXIST)
@@ -286,8 +261,9 @@ retry:
     return -1;
   }
   connection->has_socket = 1;
-  res[0] = '/';
-  sodium_bin2hex(res + 1, remaining - 1, tmp + 8, 8);
+  StringBuf_add_char(&buf, '/');
+  StringBuf_add_hex(&buf, tmp[0]);
+  StringBuf_add_hex(&buf, tmp[1]);
   return 0;
 }
 
@@ -296,7 +272,7 @@ retry:
 /* See documentation in sliprock.h */
 SliprockHandle sliprock_connect(const struct SliprockReceiver *receiver) {
   int sock = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
-  char pw_received[32];
+  unsigned char pw_received[32];
   if (sock < 0)
     return (SliprockHandle)SLIPROCK_EOSERR;
 #ifdef SLIPROCK_NO_SOCK_CLOEXEC
@@ -306,7 +282,7 @@ SliprockHandle sliprock_connect(const struct SliprockReceiver *receiver) {
     goto oserr;
   if (read(sock, pw_received, sizeof pw_received) < 32)
     goto badpass;
-  if (sodium_memcmp(pw_received, receiver->passcode, 32))
+  if (sliprock_secure_compare_memory(pw_received, receiver->passcode, 32))
     goto badpass;
   return (SliprockHandle)sock;
 badpass:
