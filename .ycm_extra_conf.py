@@ -30,6 +30,8 @@
 
 import os
 import ycm_core
+def DirectoryOfThisScript():
+  return os.path.dirname( os.path.abspath( __file__ ) )
 
 # These are the compilation flags that will be used in case there's no
 # compilation database set (by default, one is not set).
@@ -46,13 +48,12 @@ flags = [
 # language that the files to be compiled are written in. This is mostly
 # relevant for c++ headers.
 # For a C project, you would set this to 'c' instead of 'c++'.
-'-x', 'c', '-I', 'src', '-I', 'include'
+'-x', 'c', '-I', os.path.join(DirectoryOfThisScript(), 'src'),
+'-Iinclude',
 '-Weverything',
 '-Werror',
 #'-I', '/usr/x86_64-w64-mingw32/sys-root/mingw/include/',
 ]
-def DirectoryOfThisScript():
-  return os.path.dirname( os.path.abspath( __file__ ) )
 compilation_database_folder = '/dev/null/etc'
 
 # Set this to the absolute path to the folder (NOT the file!) containing the
