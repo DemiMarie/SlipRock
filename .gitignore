@@ -34,6 +34,9 @@
 
 # CMake products
 build/
+*.ninja
+CMakeFiles/
+CMakeCache.txt
 
 # Editor backups
 *~
