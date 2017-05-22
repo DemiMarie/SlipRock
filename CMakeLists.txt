@@ -1,5 +1,5 @@
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
-cmake_minimum_required(VERSION 2.8.7)
+cmake_minimum_required(VERSION 3.1)
 project(sliprock)
 enable_language(C CXX)
 include(GNUInstallDirs)
