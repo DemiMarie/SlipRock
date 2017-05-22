@@ -66,16 +66,8 @@ static OsHandle openfile(MyChar *path, int mode) {
 #define GetCurrentProcessToken() ((HANDLE) ~(ULONG_PTR)3)
 #endif
 #define snprintf _wsnprintf
-#define RtlGenRandom SystemFunction036
 #define CON_PATH(con) ((con)->pipename)
 #define SLIPROCK_MAGIC "\0SlipRock\n\rPIPE\x1a"
-extern BOOLEAN RtlGenRandom(_Out_ PVOID random_buf, _In_ ULONG buflen);
-/* NOTE: keep this in sync with the size of the buffer in
- * sliprock_internals.h
- */
-static int fill_randombuf(void *buf, size_t size) {
-  return RtlGenRandom(buf, size) ? 0 : -1;
-}
 #define hclose(x) CloseHandle(x)
 INIT_ONCE initialized = INIT_ONCE_STATIC_INIT;
 
