@@ -1,21 +1,25 @@
 #ifdef _WIN32
-#define _UNICODE _UNICODE
-#define UNICODE UNICODE
+#define _UNICODE 1
+#define UNICODE 1
 #define main _wmain
 #endif
-#include "sliprock.h"
+#include "../include/sliprock.h"
 #include "sliprock_internals.h"
 #include "stringbuf.h"
 #include <csignal>
 #include <exception>
-#include <gtest/gtest.h>
+//#include <gtest/gtest.h>
+#define BOOST_TEST_MODULE SlipRock module
+#include <boost/test/included/unit_test.hpp>
 #include <stdexcept>
 #include <thread>
 
 #ifdef _WIN32
 #define address pipename
 #endif
-TEST(CanCreateConnection, ItWorks) {
+//BOOST_AUTO_TEST_SUITE(sliprock_works)
+BOOST_AUTO_TEST_CASE(can_create_connection)
+{
 #ifndef _WIN32
   typedef int HANDLE;
 #define INVALID_HANDLE_VALUE (-1)
@@ -23,7 +27,7 @@ TEST(CanCreateConnection, ItWorks) {
   system("rm -rf -- \"$HOME/.sliprock\" /tmp/sliprock.*");
   SliprockConnection *con =
       sliprock_socket("dummy_valq", sizeof("dummy_val") - 1);
-  ASSERT_NE(con, nullptr);
+  BOOST_REQUIRE(con != nullptr);
 
   char buf[] = "Test message!";
   char buf2[sizeof buf];
@@ -79,34 +83,34 @@ TEST(CanCreateConnection, ItWorks) {
   MADE_IT;
 #ifdef _WIN32
   DWORD read;
-  EXPECT_NE(0, ReadFile(fd, buf2, sizeof buf, &read, nullptr));
-  EXPECT_EQ(read, sizeof buf);
-  EXPECT_NE(0, WriteFile(fd, buf2, sizeof buf, &read, nullptr));
-  EXPECT_EQ(read, sizeof buf);
+  BOOST_TEST(0 != ReadFile(fd, buf2, sizeof buf, &read, nullptr));
+  BOOST_TEST(read == sizeof buf);
+  BOOST_TEST(0 != WriteFile(fd, buf2, sizeof buf, &read, nullptr));
+  BOOST_TEST(read == sizeof buf);
 #else
-  EXPECT_EQ(sizeof buf, read(fd, buf2, sizeof buf));
-  EXPECT_EQ(sizeof buf, write(fd, buf2, sizeof buf));
+  BOOST_TEST(sizeof buf == read(fd, buf2, sizeof buf));
+  BOOST_TEST(sizeof buf == write(fd, buf2, sizeof buf));
 #endif
   static_assert(sizeof con->address == sizeof receiver->sock,
                 "Connection size mismatch");
-  EXPECT_EQ(memcmp(buf2, buf, sizeof buf), 0);
+  BOOST_TEST(memcmp(buf2, buf, sizeof buf) == 0);
 #ifndef _WIN32
-  EXPECT_GT(fd, -1);
+  BOOST_TEST(fd > -1);
 #endif
   read_succeeded = true;
 fail:
-  ASSERT_NE(nullptr, receiver);
-  EXPECT_EQ(0, memcmp(reinterpret_cast<void *>(&receiver->sock),
+  BOOST_REQUIRE(nullptr != receiver);
+  BOOST_TEST(0 == memcmp(reinterpret_cast<void *>(&receiver->sock),
                       reinterpret_cast<void *>(&con->address),
                       sizeof con->address));
-  EXPECT_EQ(true, read_succeeded);
-  EXPECT_NE(receiver, nullptr);
+  BOOST_TEST(read_succeeded == true);
+  BOOST_TEST(receiver != static_cast<SliprockReceiver*>(nullptr));
   if (fd != INVALID_HANDLE_VALUE) {
     MADE_IT;
 #ifndef _WIN32
-    EXPECT_EQ(close(fd), 0);
+    BOOST_TEST(close(fd) == 0);
 #else
-    EXPECT_NE(CloseHandle(fd), 0);
+    BOOST_TEST(CloseHandle(fd) != 0);
 #endif
     thread.join();
     MADE_IT;
@@ -114,11 +118,12 @@ fail:
     thread.detach();
   }
   sliprock_close_receiver(receiver);
-  EXPECT_EQ(write_succeeded, true);
+  BOOST_TEST(write_succeeded);
 
   sliprock_close(con);
 }
-
+//BOOST_AUTO_TEST_SUITE_END()
+#if 0
 int main(int argc, TCHAR **argv) {
   testing::InitGoogleTest(&argc, argv);
   int code = RUN_ALL_TESTS();
@@ -127,3 +132,4 @@ int main(int argc, TCHAR **argv) {
 #endif
   return code;
 }
+#endif

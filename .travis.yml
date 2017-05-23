@@ -4,7 +4,7 @@ addons:
     packages:
     - cmake
     - curl
-    - gtest
+    - libboost-test-dev
 sudo: false
 
 env:
