@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -ex
 set | sort
-rm -r build
+rm -rf build
 mkdir build
 cd build
 cmake ..
