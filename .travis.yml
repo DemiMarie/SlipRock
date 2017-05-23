@@ -4,6 +4,7 @@ addons:
     packages:
     - cmake
     - curl
+    - gtest
 sudo: false
 
 env:
