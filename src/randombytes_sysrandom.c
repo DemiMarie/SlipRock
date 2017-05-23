@@ -398,7 +398,8 @@ sliprock_secure_compare_memory(const volatile unsigned char *const buf1,
                                size_t len) {
   int res = 0;
   const volatile unsigned char *ptr1 = buf1, *ptr2 = buf2;
-  for (size_t i = 0; i < len; ++i)
+  size_t i;
+  for (i = 0; i < len; ++i)
     res |= ptr1[i] ^ ptr2[i];
   return (1 & ((res - 1) >> 8)) - 1;
 }
