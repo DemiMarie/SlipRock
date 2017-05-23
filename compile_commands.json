@@ -1,0 +1,22 @@
+[
+{
+  "directory": "/home/dobenour/repos/build-sliprock/test",
+  "command": "/usr/lib64/ccache/c++   -I/home/dobenour/repos/SlipRock/include  -g   -pthread -std=gnu++11 -o CMakeFiles/mytest.dir/test.cpp.o -c /home/dobenour/repos/SlipRock/test/test.cpp",
+  "file": "/home/dobenour/repos/SlipRock/test/test.cpp"
+},
+{
+  "directory": "/home/dobenour/repos/build-sliprock/src",
+  "command": "/usr/lib64/ccache/cc  -I/home/dobenour/repos/SlipRock/include  -g   -Wall -Wextra -Werror -Wstrict-aliasing=5 -Wformat=2 -Wstrict-overflow=5 -o CMakeFiles/sliprock_static.dir/sliprock.c.o   -c /home/dobenour/repos/SlipRock/src/sliprock.c",
+  "file": "/home/dobenour/repos/SlipRock/src/sliprock.c"
+},
+{
+  "directory": "/home/dobenour/repos/build-sliprock/src",
+  "command": "/usr/lib64/ccache/cc -Dsliprock_EXPORTS -I/home/dobenour/repos/SlipRock/include  -g -fPIC   -Wall -Wextra -Werror -Wstrict-aliasing=5 -Wformat=2 -Wstrict-overflow=5 -o CMakeFiles/sliprock.dir/sliprock.c.o   -c /home/dobenour/repos/SlipRock/src/sliprock.c",
+  "file": "/home/dobenour/repos/SlipRock/src/sliprock.c"
+},
+{
+  "directory": "/home/dobenour/repos/build-sliprock/src",
+  "command": "/usr/bin/clang -target x86_64-windows-mingw -Dsliprock_EXPORTS -I/home/dobenour/repos/SlipRock/include  -g -fPIC   -Wall -Wextra -Werror -Wstrict-aliasing=5 -Wformat=2 -Wstrict-overflow=5 -o CMakeFiles/sliprock.dir/sliprock.c.o   -c /home/dobenour/repos/SlipRock/src/state_machine.c -I/usr/x86_64-w64-mingw32/sys-root/mingw/include",
+  "file": "/home/dobenour/repos/SlipRock/src/state_machine.c"
+}
+]

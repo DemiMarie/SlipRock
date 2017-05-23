@@ -1,0 +1,6 @@
+if (WIN32)
+   add_library(sliprock_windows_static STATIC state_machine.c)
+   add_library(sliprock_windows SHARED state_machine.c)
+else()
+   message(WARNING "no WIP stuff on Windows")
+endif()

@@ -73,7 +73,8 @@ static struct SliprockConnection *sliprock_new(const char *const name,
 
 static int sliprock_check_charset(const char *name, size_t namelen) {
   // TODO allow unicode
-  for (size_t i = 0; i < namelen; ++i) {
+  size_t i;
+  for (i = 0; i < namelen; ++i) {
     if (!isalnum(name[i]) && name[i] != '-' && name[i] != '.' &&
         name[i] != '_') {
       errno = EILSEQ;

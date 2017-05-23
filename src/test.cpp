@@ -39,6 +39,9 @@ TEST(CanCreateConnection, ItWorks) {
     if (write(handle, buf, sizeof buf) != sizeof buf)
       return;
     MADE_IT;
+    if (read(handle, buf, sizeof buf) != sizeof buf)
+      return;
+    MADE_IT;
     if (close(handle))
       return;
     MADE_IT;
@@ -51,6 +54,8 @@ TEST(CanCreateConnection, ItWorks) {
     if (written != sizeof buf)
       return;
     MADE_IT;
+    if (ReadFile(handle, buf, sizeof buf, &written, NULL) == 0)
+      return;
     if (!CloseHandle(handle))
       return;
     MADE_IT;
@@ -76,8 +81,11 @@ TEST(CanCreateConnection, ItWorks) {
   DWORD read;
   EXPECT_NE(0, ReadFile(fd, buf2, sizeof buf, &read, nullptr));
   EXPECT_EQ(read, sizeof buf);
+  EXPECT_NE(0, WriteFile(fd, buf2, sizeof buf, &read, nullptr));
+  EXPECT_EQ(read, sizeof buf);
 #else
   EXPECT_EQ(sizeof buf, read(fd, buf2, sizeof buf));
+  EXPECT_EQ(sizeof buf, write(fd, buf2, sizeof buf));
 #endif
   static_assert(sizeof con->address == sizeof receiver->sock,
                 "Connection size mismatch");

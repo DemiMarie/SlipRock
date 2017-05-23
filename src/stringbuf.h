@@ -16,8 +16,8 @@ extern "C" {
 #include <assert.h>
 
 #ifdef _WIN32
-#define UNICODE
-#define _UNICODE
+#define UNICODE 1
+#define _UNICODE 1
 #include <windows.h>
 #else
 typedef char TCHAR;
