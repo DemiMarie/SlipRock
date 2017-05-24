@@ -6,4 +6,5 @@ mkdir build
 cd build
 cmake ..
 make
+make src/mytest
 src/mytest
