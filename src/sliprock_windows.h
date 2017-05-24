@@ -188,7 +188,7 @@ static int sliprock_bind_os_raw(struct SliprockConnection *connection,
                                 HANDLE *pipe) {
   uint64_t random[1];
 retry:
-  if (fill_randombuf(random, sizeof random) < 0)
+  if (sliprock_randombytes_sysrandom_buf(random, sizeof random) < 0)
     return -1;
   assert(connection->pipename);
   int res = swprintf_s(connection->pipename,
@@ -266,12 +266,12 @@ static int sliprock_bind_os(struct SliprockConnection *connection) {
 
 SliprockHandle sliprock_connect(const struct SliprockReceiver *receiver) {
   HANDLE hPipe = CreateFile(
-      receiver->sock, GENERIC_READ | GENERIC_READ,
+      receiver->sock, GENERIC_READ | GENERIC_WRITE,
       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
       OPEN_EXISTING, SECURITY_SQOS_PRESENT | SECURITY_ANONYMOUS, NULL);
   if (INVALID_HANDLE_VALUE == hPipe)
     return (SliprockHandle)hPipe;
-  char pass[sizeof receiver->passcode];
+  unsigned char pass[sizeof receiver->passcode];
   DWORD read;
   if (ReadFile(hPipe, pass, sizeof pass, &read, NULL) == 0)
     goto fail;
@@ -279,7 +279,7 @@ SliprockHandle sliprock_connect(const struct SliprockReceiver *receiver) {
     SetLastError(ERROR_ACCESS_DENIED);
     goto fail;
   }
-  if (secure_compare_memory(pass, receiver->passcode, sizeof pass)) {
+  if (sliprock_secure_compare_memory(pass, receiver->passcode, sizeof pass)) {
     SetLastError(ERROR_ACCESS_DENIED);
     goto fail;
   }

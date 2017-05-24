@@ -16,8 +16,12 @@ extern "C" {
 #include <assert.h>
 
 #ifdef _WIN32
+#ifndef UNICODE
 #define UNICODE 1
+#endif
+#ifndef _UNICODE
 #define _UNICODE 1
+#endif
 #include <windows.h>
 #else
 typedef char TCHAR;
@@ -86,7 +90,7 @@ static inline void StringBuf_add_hex(struct StringBuf *buf, uint64_t value) {
   }
 }
 #define StringBuf_add_literal(x, y)                                            \
-  (StringBuf_add_string((x), ("" y), sizeof(y) - 1))
+  (StringBuf_add_string((x), T(y), sizeof(y) / sizeof((y)[0]) - 1))
 static inline void StringBuf_add_string(struct StringBuf *buf, const TCHAR *ptr,
                                         size_t len) {
   uint16_t i, j;

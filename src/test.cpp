@@ -1,8 +1,10 @@
+#include <stdlib.h>
+
 #ifdef _WIN32
 #define _UNICODE 1
 #define UNICODE 1
-#define main _wmain
 #endif
+
 #include "../include/sliprock.h"
 #include "sliprock_internals.h"
 #include "stringbuf.h"
@@ -10,7 +12,8 @@
 #include <exception>
 //#include <gtest/gtest.h>
 #define BOOST_TEST_MODULE SlipRock module
-#include <boost/test/included/unit_test.hpp>
+#define BOOST_TEST_DYN_LINK
+#include <boost/test/unit_test.hpp>
 #include <stdexcept>
 #include <thread>
 

@@ -27,16 +27,16 @@
 #define SODIUM_C99(X) X
 #endif
 #endif
+#ifndef _WIN32
 
 __attribute__((warn_unused_result)) static int
 randombytes_sysrandom_init(void);
 
 __attribute__((warn_unused_result)) static int
 randombytes_sysrandom_stir(void);
-
 __attribute__((warn_unused_result)) static int
 randombytes_sysrandom_stir_if_needed(void);
-
+#endif
 #ifdef __GLIBC__
 #define _GNU_SOURCE
 #endif
@@ -89,7 +89,9 @@ extern "C"
 #endif
     BOOLEAN NTAPI
     RtlGenRandom(PVOID RandomBuffer, ULONG RandomBufferLength);
+#ifdef _MSC_VER
 #pragma comment(lib, "advapi32.lib")
+#endif
 #endif
 
 #if defined(__OpenBSD__) || defined(__CloudABI__)
@@ -117,12 +119,11 @@ typedef struct SysRandom_ {
   int initialized;
   int getrandom_available;
 } SysRandom;
-
+#ifndef _WIN32
 static SysRandom stream = {SODIUM_C99(.random_data_source_fd =) - 1,
                            SODIUM_C99(.initialized =) 0,
                            SODIUM_C99(.getrandom_available =) 0};
 
-#ifndef _WIN32
 static ssize_t safe_read(const int fd, void *const buf_, size_t size) {
   unsigned char *buf = (unsigned char *)buf_;
   ssize_t readnb;
@@ -283,12 +284,6 @@ randombytes_sysrandom_init(void) {
   return 0;
 }
 
-#else /* _WIN32 */
-
-__attribute__((warn_unused_result)) static int
-randombytes_sysrandom_init(void) {}
-#endif
-
 static int randombytes_sysrandom_stir(void) {
   if (stream.initialized == 0) {
     if (randombytes_sysrandom_init() < 0) {
@@ -298,15 +293,17 @@ static int randombytes_sysrandom_stir(void) {
   }
   return 0;
 }
-#ifndef _WIN32
+
 static int randombytes_sysrandom_stir_if_needed(void) {
   if (stream.initialized == 0) {
     return randombytes_sysrandom_stir();
   }
   return 0;
 }
+#ifndef SLIPROCK_NO_THREADS
 #include <pthread.h>
 static pthread_once_t once = PTHREAD_ONCE_INIT;
+#endif
 static int is_initialized;
 static void init_libsodium(void) {
   is_initialized = randombytes_sysrandom_stir_if_needed();
@@ -314,7 +311,11 @@ static void init_libsodium(void) {
 
 // Initialize libsodium
 static int init_func(void) {
+#ifndef SLIPROCK_NO_THREADS
   int initialized = pthread_once(&once, &init_libsodium);
+#else
+  int initialized = init_libsodium();
+#endif
   if (initialized) {
     errno = initialized;
     return -1;
