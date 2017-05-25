@@ -13,4 +13,5 @@ env:
    - "LD_LIBRARY_PATH='usr/lib' LIBRARY_PATH='usr/lib'"
 
 script:
+- cmake --version
 - ./travis-ci.sh
