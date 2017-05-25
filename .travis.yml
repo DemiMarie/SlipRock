@@ -6,6 +6,7 @@ addons:
     - curl
     - libboost-test-dev
 sudo: false
+dist: trusty
 
 env:
    global:

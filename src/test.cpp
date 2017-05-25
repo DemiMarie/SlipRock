@@ -14,6 +14,7 @@
 #define BOOST_TEST_MODULE SlipRock module
 #define BOOST_TEST_DYN_LINK
 #include <boost/test/unit_test.hpp>
+#include <boost/thread.hpp>
 #include <stdexcept>
 #include <thread>
 
@@ -35,7 +36,7 @@ BOOST_AUTO_TEST_CASE(can_create_connection)
   char buf[] = "Test message!";
   char buf2[sizeof buf];
   bool write_succeeded = false, read_succeeded = false;
-  std::thread thread([&]() {
+  boost::thread thread([&]() {
     MADE_IT;
     auto handle = (HANDLE)sliprock_accept(con);
     MADE_IT;
