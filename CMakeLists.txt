@@ -1,6 +1,7 @@
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 cmake_minimum_required(VERSION 2.8.7)
 project(sliprock)
+cmake_policy(CMP0028 NEW)
 enable_language(C CXX)
 include(GNUInstallDirs)
 include_directories(include)
