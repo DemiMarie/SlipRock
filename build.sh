@@ -44,9 +44,16 @@ run_with_checks cmake -G'Eclipse CDT4 - Unix Makefiles' \
    -DCMAKE_BUILD_TYPE="$buildtype" \
    -DCMAKE_C_FLAGS="$sanitizeflags" \
    -DCMAKE_CXX_FLAGS="$sanitizeflags" \
+   -GNinja \
    "${definitions[@]}" \
    "$mydir"
-run_with_checks make -j10 
+for i in build.ninja \
+         src/CMakeFiles/mytest.dir/includes_CXX.rsp \
+         compile_commands.json
+do
+  sed -i 's/ -isystem / -I /g' "$i" || :
+done
+run_with_checks ninja -j10 
 if [[ $target = unix ]]; then
    LD_PRELOAD=/usr/lib64/libasan.so.4.0.0 src/mytest || gdb --tui test/mytest
 else
