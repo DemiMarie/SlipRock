@@ -14,6 +14,9 @@
 #define BOOST_TEST_MODULE SlipRock module
 #define BOOST_TEST_DYN_LINK
 #include <boost/test/unit_test.hpp>
+#ifndef BOOST_TEST
+#define BOOST_TEST BOOST_CHECK
+#endif
 //#include <boost/thread.hpp>
 #include <stdexcept>
 #include <thread>
