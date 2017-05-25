@@ -20,8 +20,8 @@ endif()
 
 
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0")
-set(cxx_flag_list no-old-style-cast [[no-c\\\\+\\\\+98-compat]] no-global-constructors no-c99-extensions)
-set(c_flag_list [[no-c\\\\+\\\\+-compat]])
+set(cxx_flag_list no-old-style-cast "no-c\\\\+\\\\+98-compat" no-global-constructors no-c99-extensions)
+set(c_flag_list "no-c\\\\+\\\\+-compat")
 
 function(check_compiler_lang_flags LANG ARGN)
    if (NOT LANG MATCHES "^(C|CXX)$")
