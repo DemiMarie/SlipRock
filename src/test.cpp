@@ -4,7 +4,7 @@
 #define _UNICODE 1
 #define UNICODE 1
 #endif
-
+#define SLIPROCK_TRACE
 #include "../include/sliprock.h"
 #include "sliprock_internals.h"
 #include "stringbuf.h"

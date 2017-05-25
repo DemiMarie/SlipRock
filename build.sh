@@ -57,5 +57,5 @@ run_with_checks ninja -j10
 if [[ $target = unix ]]; then
    LD_PRELOAD=/usr/lib64/libasan.so.4.0.0 src/mytest || gdb --tui test/mytest
 else
-   wine test/mytest.exe
+   wine src/mytest.exe
 fi
