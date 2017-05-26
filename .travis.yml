@@ -13,5 +13,7 @@ env:
    - "LD_LIBRARY_PATH='usr/lib' LIBRARY_PATH='usr/lib'"
 
 script:
+- mktemp
+- echo ~
 - cmake --version
 - ./travis-ci.sh
