@@ -21,6 +21,9 @@
 #ifdef _WIN32
 #define address pipename
 #endif
+#ifndef BOOST_TEST
+#define BOOST_TEST BOOST_CHECK
+#endif
 
 bool serve(SliprockConnection *con) {}
 // BOOST_AUTO_TEST_SUITE(sliprock_works)
@@ -150,7 +153,7 @@ BOOST_AUTO_TEST_CASE(can_create_connection) {
   thread.join();
   if (!read_succeeded) {
     thread2.detach();
-    BOOST_REQUIRE(false);
+    throw std::runtime_error();
   } else {
     thread2.join();
   }
