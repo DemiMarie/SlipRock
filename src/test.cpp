@@ -153,7 +153,7 @@ BOOST_AUTO_TEST_CASE(can_create_connection) {
   thread.join();
   if (!read_succeeded) {
     thread2.detach();
-    throw std::runtime_error();
+    throw std::runtime_error("failed to read");
   } else {
     thread2.join();
   }
