@@ -3,7 +3,7 @@
 #ifdef __cplusplus
 extern "C" {
 #elif 0
-}
+} /* make emacs indent happy */
 #endif
 #ifdef SLIPROCK_INTERNALS
 #include "../src/sliprock_internals.h"
@@ -188,8 +188,9 @@ SLIPROCK_API SliprockHandle sliprock_UNSAFEgetRawHandle(
  */
 SLIPROCK_API const char *
 sliprock_UNSAFEgetPasscode(const struct SliprockConnection *connection);
+
 #if 0
-{
+{ /* make emacs happy */
 #elif defined __cplusplus
 }
 #endif

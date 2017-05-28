@@ -26,8 +26,8 @@ struct myuv_work {
 #define open_osfhandle(x) (_open_osfhandle((HANDLE)(x)))
 #endif
 
-static void sliprock_uv_pipe_bind_loop_cb(uv_work_t *req) {
-  struct myuv_work *work = (struct myuv_work *)req->data;
+static void sliprock_uv_pipe_bind_loop_cb(uv_work_t *const req) {
+  struct myuv_work *const work = (struct myuv_work *)req->data;
   assert(work->work.data == req &&
          "Bogus work passed to sliprock_uv_pipe_bind_loop_cb()!");
   work->pipe->con = sliprock_socket(work->name, work->length);
@@ -40,8 +40,9 @@ static void sliprock_uv_pipe_bind_loop_cb(uv_work_t *req) {
   }
 }
 
-static void sliprock_uv_pipe_bind_after_loop_cb(uv_work_t *req, int status) {
-  struct myuv_work *work = (struct myuv_work *)req->data;
+static void sliprock_uv_pipe_bind_after_loop_cb(uv_work_t *const req,
+                                                const int status) {
+  struct myuv_work *const work = (struct myuv_work *)req->data;
   assert(work->work.data == req &&
          "Bogus work passed to sliprock_uv_pipe_bind_loop_cb()!");
   if (status || NULL == work->pipe->con) {
@@ -61,9 +62,10 @@ static void sliprock_uv_pipe_bind_after_loop_cb(uv_work_t *req, int status) {
   }
 }
 
-SLIPROCK_API int sliprock_uv_pipe_bind(uv_loop_t *loop, const char *name,
-                                       size_t length, void *data,
-                                       sliprock_uv_pipe_cb cb) {
+SLIPROCK_API int sliprock_uv_pipe_bind(uv_loop_t *const loop,
+                                       const char *const name,
+                                       const size_t length, void *const data,
+                                       sliprock_uv_pipe_cb const cb) {
   int nomem = UV_ENOMEM;
   struct myuv_work *req = calloc(sizeof(struct myuv_work), 1);
   if (NULL == req)
@@ -91,14 +93,21 @@ error_nomem:
   free(req);
   return nomem;
 }
+/* Accepts a libuv listening callback */
+static void sliprock_uv_listen_cb(uv_stream_t *stream, int status_) {
+  uv_pipe_t newstream;
+  sliprock_uv_pipe_t *pipe;
+  int status;
+  pipe = (sliprock_uv_pipe_t *)stream->data;
+  assert((uv_stream_t *)&pipe->pipe == stream);
+  uv_pipe_init(stream->loop, &newstream, pipe->ipc);
+  status = uv_accept(stream, (uv_stream_t *)&newstream);
+  (pipe->cb)(newstream, status_ ? status_ : status);
+  return;
+}
 
-static void sliprock_uv_listen_cb(uv_stream_t *stream) {
-   sliprock_uv_pipe_t *pipe = (sliprock_uv_pipe_t*)stream->data;
-   assert((uv_stream_t*)&pipe->pipe == stream);
-   uv_accept(stream, 
-
-SLIPROCK_API int sliprock_uv_pipe_listen(uv_loop_t *loop,
-                                         sliprock_uv_pipe_t *pipe,
+SLIPROCK_API int sliprock_uv_pipe_listen(sliprock_uv_pipe_t *pipe,
                                          sliprock_uv_accept_cb cb) {
-   return uv_listen(pipe->pipe, &sliprock_uv_listen_cb);
+  pipe->cb = cb;
+  return uv_listen((uv_stream_t *)&pipe->pipe, 0, &sliprock_uv_listen_cb);
 }
