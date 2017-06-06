@@ -16,6 +16,13 @@ struct myuv_work {
   int dummy;
 };
 
+struct myuv_write {
+  uv_write_t write;
+  unsigned char buf[32];
+  uv_connection_cb callback;
+  uint8_t bytes_read;
+};
+
 #ifndef _WIN32
 #include <fcntl.h>
 #include <unistd.h>
@@ -42,22 +49,29 @@ static void sliprock_uv_pipe_bind_loop_cb(uv_work_t *const req) {
 
 static void sliprock_uv_pipe_bind_after_loop_cb(uv_work_t *const req,
                                                 const int status) {
-  struct myuv_work *const work = (struct myuv_work *)req->data;
+  struct myuv_work *work = (struct myuv_work *)req->data;
+  sliprock_uv_pipe_t *pipe = work->pipe;
+  sliprock_uv_pipe_cb cb = work->cb;
+  int error_code = work->error_code;
   assert(work->work.data == req &&
          "Bogus work passed to sliprock_uv_pipe_bind_loop_cb()!");
-  if (status || NULL == work->pipe->con) {
-    (work->cb)(work->pipe, work->error_code);
+  free(work->name);
+  work->name = NULL;
+  free(work);
+  work = NULL;
+  if (status || NULL == pipe->con) {
+    cb(pipe, error_code);
   } else {
-    uv_file fhandle =
-        open_osfhandle(sliprock_UNSAFEgetRawHandle(work->pipe->con, 1));
-    int errorcode = uv_pipe_open(&work->pipe->pipe, fhandle);
+    uv_file fhandle = open_osfhandle(sliprock_UNSAFEgetRawHandle(pipe->con, 1));
+    int errorcode = fhandle >= 0 ? uv_pipe_open(&pipe->pipe, fhandle) : -errno;
+    work = NULL;
     if (errorcode) {
       close(fhandle);
-      sliprock_close(work->pipe->con);
-      work->pipe->con = NULL;
-      (work->cb)(work->pipe, errorcode);
+      sliprock_close(pipe->con);
+      pipe->con = NULL;
+      cb(pipe, errorcode);
     } else {
-      (work->cb)(work->pipe, 0);
+      cb(pipe, 0);
     }
   }
 }
@@ -83,10 +97,9 @@ SLIPROCK_API int sliprock_uv_pipe_bind(uv_loop_t *const loop,
   if (NULL == req->pipe)
     goto error_nomem;
   nomem = uv_pipe_init(loop, &req->pipe->pipe, 0);
-  if (nomem)
-    goto error_nomem;
-  return uv_queue_work(loop, &req->work, &sliprock_uv_pipe_bind_loop_cb,
-                       &sliprock_uv_pipe_bind_after_loop_cb);
+  if (!nomem)
+    return uv_queue_work(loop, &req->work, &sliprock_uv_pipe_bind_loop_cb,
+                         &sliprock_uv_pipe_bind_after_loop_cb);
 error_nomem:
   free(req->name);
   free(req->pipe);
@@ -102,6 +115,10 @@ static void sliprock_uv_listen_cb(uv_stream_t *stream, int status_) {
   assert((uv_stream_t *)&pipe->pipe == stream);
   uv_pipe_init(stream->loop, &newstream, pipe->ipc);
   status = uv_accept(stream, (uv_stream_t *)&newstream);
+  assert(status_ ||
+         !status && "uv_accept failed when libuv guaranteed that it would not");
+  newstream->data = pipe;
+  pipe->refcount++;
   (pipe->cb)(newstream, status_ ? status_ : status);
   return;
 }
