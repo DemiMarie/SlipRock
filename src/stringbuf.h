@@ -28,11 +28,21 @@ typedef char TCHAR;
 #endif
 
 struct StringBuf {
-  TCHAR *buf;
+  TCHAR *buf;                  /**< The actual buffer */
   const uint16_t buf_capacity; /**< in *TCHARs* */
   uint16_t buf_length;         /**< in *TCHARs* */
 };
 
+/**
+ * Initialize a string buffer.  Similar to Windows'
+ * RtlUnicodeStringInit().
+ * @param buf The buffer to initialize.
+ * @param buf_capacity The capacity of the buffer.
+ * @param buf_length The length of the buffer.
+ * @param buf_ptr A pointer to the buffer's data.
+ * The string buffer does not own this data,
+ * but it must last at least as long as the buffer.
+ */
 static inline void StringBuf_init(struct StringBuf *buf,
                                   size_t const buf_capacity,
                                   size_t const buf_length,
@@ -51,7 +61,9 @@ StringBuf_alloc(size_t const buf_capacity, struct StringBuf *const buf) {
   TCHAR *val = (TCHAR *)calloc(buf_capacity, sizeof(TCHAR));
   if (NULL == val)
     return -1;
-  struct StringBuf retval = { val, (uint16_t)buf_capacity, 0, };
+  struct StringBuf retval = {
+      val, (uint16_t)buf_capacity, 0,
+  };
   memcpy(buf, &retval, sizeof retval);
   return 0;
 }
@@ -81,7 +93,9 @@ static inline void StringBuf_add_decimal(struct StringBuf *buf,
   } while (value > 0);
   buf->buf[buf->buf_length] = '\0';
 }
-static inline void StringBuf_add_hex(struct StringBuf *buf, uint64_t value) {
+
+static inline void StringBuf_add_hex(struct StringBuf *buf,
+                                     uint64_t value) {
   int i;
   assert(buf->buf_capacity - buf->buf_length >= 9);
   for (i = 0; i < 64; i += 4) {
@@ -89,10 +103,10 @@ static inline void StringBuf_add_hex(struct StringBuf *buf, uint64_t value) {
     StringBuf_add_char(buf, (char)(res > 9 ? 'a' + res : '0' + res));
   }
 }
-#define StringBuf_add_literal(x, y)                                            \
+#define StringBuf_add_literal(x, y)                                       \
   (StringBuf_add_string((x), T(y), sizeof(y) / sizeof((y)[0]) - 1))
-static inline void StringBuf_add_string(struct StringBuf *buf, const TCHAR *ptr,
-                                        size_t len) {
+static inline void StringBuf_add_string(struct StringBuf *buf,
+                                        const TCHAR *ptr, size_t len) {
   uint16_t i, j;
   assert(len != SIZE_MAX);
   assert((size_t)(buf->buf_capacity - buf->buf_length) >= len);
