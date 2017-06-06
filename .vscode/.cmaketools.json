@@ -6,5 +6,112 @@
     },
     "description": "Emit debug information without performing optimizations"
   },
-  "activeEnvironments": []
+  "activeEnvironments": [],
+  "codeModel": {
+    "configurations": [
+      {
+        "name": "Debug",
+        "projects": [
+          {
+            "buildDirectory": "/home/dobenour/repos/SlipRock/build",
+            "name": "sliprock",
+            "sourceDirectory": "/home/dobenour/repos/SlipRock",
+            "targets": [
+              {
+                "artifacts": [
+                  "/home/dobenour/repos/SlipRock/build/src/libsliprock_static.a"
+                ],
+                "buildDirectory": "/home/dobenour/repos/SlipRock/build/src",
+                "fileGroups": [
+                  {
+                    "compileFlags": "-O3 -march=native -pipe -fstack-protector -DFORTIFY_SOURCE -g -O0   -pthread",
+                    "includePath": [
+                      {
+                        "path": "/home/dobenour/repos/SlipRock/include"
+                      }
+                    ],
+                    "isGenerated": false,
+                    "language": "C",
+                    "sources": [
+                      "sliprock.c",
+                      "randombytes_sysrandom.c"
+                    ]
+                  }
+                ],
+                "fullName": "libsliprock_static.a",
+                "linkerLanguage": "C",
+                "name": "sliprock_static",
+                "sourceDirectory": "/home/dobenour/repos/SlipRock/src",
+                "type": "STATIC_LIBRARY"
+              },
+              {
+                "artifacts": [
+                  "/home/dobenour/repos/SlipRock/build/src/mytest"
+                ],
+                "buildDirectory": "/home/dobenour/repos/SlipRock/build/src",
+                "fileGroups": [
+                  {
+                    "compileFlags": "-O3 -march=native -pipe -fstack-protector -DFORTIFY_SOURCE -std=c++11 -g   -pthread -std=gnu++11",
+                    "includePath": [
+                      {
+                        "path": "/home/dobenour/repos/SlipRock/include"
+                      }
+                    ],
+                    "isGenerated": false,
+                    "language": "CXX",
+                    "sources": [
+                      "test.cpp"
+                    ]
+                  }
+                ],
+                "fullName": "mytest",
+                "linkFlags": "-Wl,-z,relro,-z,now",
+                "linkLanguageFlags": "-O3 -march=native -pipe -fstack-protector -DFORTIFY_SOURCE -std=c++11 -g",
+                "linkLibraries": "-Wl,-rpath,/home/dobenour/repos/SlipRock/build/src /usr/lib64/libboost_unit_test_framework.so libsliprock.so -pthread -pthread",
+                "linkerLanguage": "CXX",
+                "name": "mytest",
+                "sourceDirectory": "/home/dobenour/repos/SlipRock/src",
+                "type": "EXECUTABLE"
+              },
+              {
+                "artifacts": [
+                  "/home/dobenour/repos/SlipRock/build/src/libsliprock.so"
+                ],
+                "buildDirectory": "/home/dobenour/repos/SlipRock/build/src",
+                "fileGroups": [
+                  {
+                    "compileFlags": "-O3 -march=native -pipe -fstack-protector -DFORTIFY_SOURCE -g -O0 -fPIC   -pthread",
+                    "defines": [
+                      "sliprock_EXPORTS"
+                    ],
+                    "includePath": [
+                      {
+                        "path": "/home/dobenour/repos/SlipRock/include"
+                      }
+                    ],
+                    "isGenerated": false,
+                    "language": "C",
+                    "sources": [
+                      "sliprock.c",
+                      "randombytes_sysrandom.c"
+                    ]
+                  }
+                ],
+                "fullName": "libsliprock.so",
+                "linkFlags": "-Wl,-z,relro,-z,now",
+                "linkLibraries": "-pthread",
+                "linkerLanguage": "C",
+                "name": "sliprock",
+                "sourceDirectory": "/home/dobenour/repos/SlipRock/src",
+                "type": "SHARED_LIBRARY"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "cookie": "0.5533715917132598",
+    "inReplyTo": "codemodel",
+    "type": "reply"
+  }
 }

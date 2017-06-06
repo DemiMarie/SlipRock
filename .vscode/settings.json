@@ -1,0 +1,22 @@
+// Place your settings in this file to overwrite default and user settings.
+{
+    "files.associations": {
+        "exception": "cpp",
+        "*.ipp": "cpp",
+        "thread": "cpp"
+    }
+    // The full path of the clang-format executable.
+    "C_Cpp.clang_format_path": "/usr/bin/clang-format",
+    "clang.cflags": [
+        "-std=c89",
+        "-DUNICODE",
+        "-D_UNICODE",
+        "-Isrc/",
+        "-Iinclude/"
+    ],
+    "clang.cxxflags": [
+        "-std=c++11",
+        "-DUNICODE",
+        "-D_UNICODE"
+    ]
+}
