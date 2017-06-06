@@ -24,7 +24,7 @@ set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0")
 set(cxx_flag_list Wno-old-style-cast "Wno-c\\\\\\\\+\\\\\\\\+98-compat" std=c++11
     Wno-global-constructors Wno-c99-extensions)
 set(c_flag_list "Wno-c\\\\\\\\+\\\\\\\\+-compat" std=c89)
-
+set(CMAKE_CXX_STANDARD 11)
 function(check_compiler_lang_flags LANG ARGN)
    if (NOT LANG MATCHES "^(C|CXX)$")
       message(FATAL_ERROR "bad LANG passed to check_compiler_lang_flags")
