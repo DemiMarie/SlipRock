@@ -10,7 +10,7 @@
 #include "stringbuf.h"
 #include <csignal>
 #include <exception>
-//#include <gtest/gtest.h>
+#include <mutex>
 #define BOOST_TEST_MODULE SlipRock module
 #define BOOST_TEST_DYN_LINK
 #include <boost/test/unit_test.hpp>
@@ -20,19 +20,32 @@
 
 #ifdef _WIN32
 #define address pipename
+#include <windows.h>
 #endif
 #ifndef BOOST_TEST
 #define BOOST_TEST BOOST_CHECK
 #endif
 
-bool serve(SliprockConnection *con) {}
-// BOOST_AUTO_TEST_SUITE(sliprock_works)
-
 #ifndef _WIN32
 typedef int HANDLE;
+#include <pthread.h>
 #define INVALID_HANDLE_VALUE (-1)
 #endif
-template <size_t size> bool client(char (&buf)[size], SliprockConnection *con) {
+struct set_on_close {
+  set_on_close(std::mutex &m, bool &b) : boolean(b), mut(m) {}
+  ~set_on_close() {
+    std::unique_lock<std::mutex> locker{mut};
+    boolean = true;
+  }
+
+private:
+  bool &boolean;
+  std::mutex &mut;
+};
+template <size_t size>
+bool client(char (&buf)[size], SliprockConnection *con, bool &finished,
+            std::mutex &mutex) {
+  set_on_close closer(mutex, finished);
   char buf2[size + 1] = {0};
   bool read_succeeded = false;
   HANDLE fd = INVALID_HANDLE_VALUE;
@@ -57,8 +70,10 @@ template <size_t size> bool client(char (&buf)[size], SliprockConnection *con) {
   BOOST_TEST(0 != WriteFile(fd, buf2, sizeof buf, &read, nullptr));
   BOOST_TEST(read == sizeof buf);
 #else
-  BOOST_TEST(sizeof buf == read(fd, buf2, sizeof buf));
-  BOOST_TEST(sizeof buf == write(fd, buf2, sizeof buf));
+  if (fd >= 0) {
+    BOOST_TEST(sizeof buf == read(fd, buf2, sizeof buf));
+    BOOST_TEST(sizeof buf == write(fd, buf2, sizeof buf));
+  }
 #endif
   // static_assert(sizeof buf2 == sizeof buf, "Buffer size mismatch");
   static_assert(sizeof con->address == sizeof receiver->sock,
@@ -85,7 +100,11 @@ fail:
   sliprock_close_receiver(receiver);
   return read_succeeded;
 }
-template <size_t n> bool server(char (&buf)[n], SliprockConnection *con) {
+
+template <size_t n>
+bool server(char (&buf)[n], SliprockConnection *con, bool &finished,
+            std::mutex &mutex) {
+  set_on_close closer(mutex, finished);
   MADE_IT;
   auto handle = (HANDLE)sliprock_accept(con);
   MADE_IT;
@@ -118,58 +137,70 @@ template <size_t n> bool server(char (&buf)[n], SliprockConnection *con) {
     return false;
   MADE_IT;
 #endif
-  return !memcmp(buf3, buf, sizeof buf);
+  bool x = !memcmp(buf3, buf, sizeof buf);
+  finished = true;
+  return x;
 }
-void donothing(int _) { return; }
+static void donothing(int _) {
+  (void)_;
+  return;
+}
+#ifndef _WIN32
+static_assert(std::is_same<std::thread::native_handle_type, pthread_t>(),
+              "Mismatched native handle type!");
+#elif 0
+static_assert(std::is_same<std::thread::native_handle_type, HANDLE>(),
+              "Mismatched native handle type!");
+#endif
+// Interrupt a thread IF read_done is true, ensuring that lock is held
+// when reading its value.
+static void interrupt_thread(std::mutex &lock, const bool &read_done,
+                             std::thread &thread) {
+  std::unique_lock<std::mutex> locker(lock);
+  if (!read_done) {
+#ifndef _WIN32
+    pthread_kill(thread.native_handle(), SIGPIPE);
+#elif false
+    CancelSynchronousIo(thread.native_handle());
+#endif
+  }
+}
 BOOST_AUTO_TEST_CASE(can_create_connection) {
+#ifndef _WIN32
   struct sigaction sigact;
   memset(&sigact, 0, sizeof sigact);
   sigact.sa_handler = donothing;
   sigemptyset(&sigact.sa_mask);
-  sigaddset(&sigact.sa_mask, SIGALRM);
-  sigaction(SIGALRM, &sigact, nullptr);
+  sigaddset(&sigact.sa_mask, SIGPIPE);
+  sigaction(SIGPIPE, &sigact, nullptr);
+#endif
   system("rm -rf -- \"$HOME/.sliprock\" /tmp/sliprock.*");
   SliprockConnection *con =
       sliprock_socket("dummy_valq", sizeof("dummy_val") - 1);
   BOOST_REQUIRE(con != nullptr);
 
+  std::mutex lock, lock2;
+  bool read_done = false, write_done = false;
   char buf[] = "Test message!";
-  char buf2[sizeof buf] = {0};
   bool write_succeeded = false, read_succeeded = false;
   std::thread thread([&]() {
-    if (!(read_succeeded = server(buf, con)))
+    if (!(read_succeeded = server(buf, con, read_done, lock2)))
       perror("sliprock_server");
   });
-  std::thread thread2([&]() { write_succeeded = client(buf, con); });
-#ifndef _WIN32
-  std::thread{[&]() {
-    for (;;) {
-      struct timespec q = {1, 0};
-      nanosleep(&q, nullptr);
-      raise(SIGALRM);
-    }
-  }}.detach();
-#endif
+  std::thread thread2(
+      [&]() { write_succeeded = client(buf, con, write_done, lock); });
+  auto interrupter = std::thread{[&]() {
+    struct timespec q = {1, 0};
+    nanosleep(&q, nullptr);
+    interrupt_thread(lock2, read_done, thread);
+    interrupt_thread(lock, write_done, thread2);
+  }};
   thread.join();
-  if (!read_succeeded) {
-    thread2.detach();
-    throw std::runtime_error("failed to read");
-  } else {
-    thread2.join();
-  }
+  thread2.join();
+  interrupter.join();
   BOOST_TEST(write_succeeded);
   BOOST_TEST(read_succeeded);
 
   sliprock_close(con);
 }
 // BOOST_AUTO_TEST_SUITE_END()
-#if 0
-int main(int argc, TCHAR **argv) {
-  testing::InitGoogleTest(&argc, argv);
-  int code = RUN_ALL_TESTS();
-#ifdef _WIN32
-  Sleep(INFINITE);
-#endif
-  return code;
-}
-#endif
