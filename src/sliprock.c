@@ -95,7 +95,7 @@ static int sliprock_check_charset(const char *name, size_t namelen) {
  * \param pid is the process ID of the process that created the connection.
  */
 static int get_fname(const char *const srcname, const size_t size,
-                     uint32_t pid, int *innerlen, int *outerlen,
+                     uint32_t pid, int *innerlen, uint16_t extraspace,
                      struct StringBuf *fname_buf) {
   void *freeptr = NULL;
 
@@ -114,18 +114,19 @@ static int get_fname(const char *const srcname, const size_t size,
     goto fail;
 
   const size_t homelen = MyStrlen(homedir);
-  if (homelen > INT_MAX / 2) {
+  if (homelen > UINT16_MAX) {
     errno = ERANGE;
     goto fail;
   }
 
-  const size_t newsize = size + sizeof "/.sliprock/..sock" + 20 + homelen;
-  if (newsize > INT_MAX) {
+  const size_t newsize = size + sizeof "/.sliprock/..sock" +
+                         20 /* pid */ + homelen + extraspace;
+  if (extraspace > UINT16_MAX || newsize > UINT16_MAX - extraspace) {
     errno = ERANGE;
     goto fail;
   }
 
-  if (StringBuf_alloc(newsize, fname_buf) < 0)
+  if (StringBuf_alloc(newsize + extraspace, fname_buf) < 0)
     goto fail;
 
   size_t innerlen_ = homelen + sizeof "/.sliprock" - 1;
@@ -138,16 +139,12 @@ static int get_fname(const char *const srcname, const size_t size,
   StringBuf_add_string(fname_buf, decoded_srcname, size);
   StringBuf_add_literal(fname_buf, ".sock");
   errno = 0;
-  if (outerlen)
-    *outerlen = fname_buf->buf_length;
   if (innerlen)
     *innerlen = (int)innerlen_;
   goto success;
 fail:
   if (innerlen)
     *innerlen = 0;
-  if (outerlen)
-    *outerlen = 0;
   free(fname_buf->buf);
   memset(fname_buf, 0, sizeof *fname_buf);
   return -1;
@@ -158,15 +155,14 @@ success:
 }
 
 static int sliprock_bind(struct SliprockConnection *con) {
-  int e = 0, created_file = 0;
+  int e = 0, created_file = 0, res = 0;
   OsHandle fd = (OsHandle)-1;
-  int newlength, res;
   /* Checked in sliprock_socket() */
   assert(sliprock_check_charset(con->name, con->namelen) == 0 &&
          "Bogus characters in connection name should have been detected "
          "earlier!");
   if (get_fname(con->name, con->namelen, (uint32_t)getpid(), &res,
-                &newlength, &con->path) < 0) {
+                17, &con->path) < 0) {
     return -1;
   }
   if (sliprock_randombytes_sysrandom_buf(con->passwd, sizeof con->passwd) <
@@ -184,9 +180,9 @@ static int sliprock_bind(struct SliprockConnection *con) {
   if (sliprock_fsync(fd) < 0)
     goto fail;
   if (hclose(fd) < 0) {
-    /* Don't double-close – the state of the FD is unspecified.  Better to
-     */
-    /* leak an FD than close an FD that other code could be using. */
+    /* Don't double-close – the state of the FD is unspecified.  Better
+     * to
+     * leak an FD than close an FD that other code could be using. */
     fd = INVALID_HANDLE_VALUE;
     goto fail;
   }
@@ -261,7 +257,7 @@ sliprock_open(const char *const identifier, size_t size, uint32_t pid) {
   assert(pid <= INT_MAX &&
          "PID must be within range of valid process IDs!");
 #endif
-  if (get_fname(identifier, size, pid, NULL, NULL, &fname))
+  if (get_fname(identifier, size, pid, NULL, 0, &fname))
     return NULL;
   errno = 0;
   fd = openfile(fname.buf, O_RDONLY);
@@ -299,7 +295,7 @@ SLIPROCK_API uint64_t sliprock_UNSAFEgetRawHandle(
   return handle;
 }
 
-SLIPROCK_API const char *
+SLIPROCK_API const unsigned char *
 sliprock_UNSAFEgetPasscode(const struct SliprockConnection *connection) {
   return connection->passwd;
 }
