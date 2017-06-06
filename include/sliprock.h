@@ -186,7 +186,7 @@ SLIPROCK_API SliprockHandle sliprock_UNSAFEgetRawHandle(
  * pointed to by this **MUST** be the first thing written to any handles created
  * from the OS handle.
  */
-SLIPROCK_API const char *
+SLIPROCK_API const unsigned char *
 sliprock_UNSAFEgetPasscode(const struct SliprockConnection *connection);
 
 #if 0
