@@ -4,7 +4,11 @@ set | sort
 rm -rf build
 mkdir build
 cd build
-cmake ..
-make
-make src/mytest
+if command -v ninja; then
+    cmake .. -GNinja
+    ninja
+else
+    cmake ..
+    make
+fi
 src/mytest
