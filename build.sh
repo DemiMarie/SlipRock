@@ -29,6 +29,9 @@ if [[ $target = unix ]]; then
       scan-build $(cat "$mydir/checkers.txt") "$@"
    }
 else
+   for i in C CXX; do
+      definitions+=("-DCMAKE_${i}_IMPLICIT_INCLUDE_DIRS=/usr/x86_64-w64-mingw32/sys-root/mingw/include")
+   done
    run_with_checks () {
       print -r "$1"
       val=`basename "$1"`
@@ -51,7 +54,7 @@ for i in build.ninja \
          src/CMakeFiles/mytest.dir/includes_CXX.rsp \
          compile_commands.json
 do
-  sed -i 's/ -isystem / -I /g' "$i" || :
+  #sed -i 's/ -isystem / -I /g' "$i" || :
 done
 run_with_checks ninja -j10 
 if [[ $target = unix ]]; then

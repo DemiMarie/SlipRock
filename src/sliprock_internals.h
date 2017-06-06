@@ -27,7 +27,7 @@ struct SliprockConnection {
   size_t namelen;
   /* const char path[SOCKET_PATH_LEN]; */
   struct StringBuf path;
-  char passwd[32];
+  unsigned char passwd[32];
   OsHandle fd;
 #ifdef _WIN32
   wchar_t pipename[PIPE_SIZE];

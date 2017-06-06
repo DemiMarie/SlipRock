@@ -75,11 +75,21 @@ sliprock_accept(struct SliprockConnection *connection) {
     return fd;
   set_cloexec(fd);
 #endif
-  if (write(fd, connection->passwd, sizeof connection->passwd) < 32) {
-    hclose(fd);
-    return (SliprockHandle)INVALID_HANDLE_VALUE;
+  const unsigned char *pw_pos = connection->passwd,
+                      *const limit = connection->passwd + 32;
+  while (1) {
+    const ssize_t delta = limit - pw_pos;
+    assert(delta >= 0);
+    const ssize_t num_written = write(fd, pw_pos, (size_t)delta);
+    if (num_written <= 0) {
+      hclose(fd);
+      return (SliprockHandle)INVALID_HANDLE_VALUE;
+    }
+    assert(num_written <= delta);
+    if (num_written >= delta)
+      return (SliprockHandle)fd;
+    pw_pos += num_written;
   }
-  return (SliprockHandle)fd;
 }
 
 int sliprock_bind_os(struct SliprockConnection *connection) {
@@ -116,34 +126,32 @@ int sliprock_bind_os(struct SliprockConnection *connection) {
  * On error, returns NULL and set errno. */
 static const char *sliprock_get_home_directory(void **freeptr) {
   int e;
-  struct passwd *buf = NULL;
+  char *buf = NULL;
   size_t size = 28;
-  struct passwd *pw_ptr;
+  struct passwd pw, *pw_ptr;
+  memset(&pw, 0, sizeof(pw));
   *freeptr = NULL;
   do {
-    void *old_buf = buf;
+    char *old_buf = buf;
     assert(size < (SIZE_MAX >> 1));
-    if ((buf = (struct passwd *)realloc(
-             buf, (size <<= 1) + sizeof(struct passwd))) == NULL) {
+    if ((buf = realloc(buf, (size <<= 1))) == NULL) {
       // Yes, we need to handle running out of memory.
       free(old_buf);
       return NULL;
     }
-    pw_ptr = (struct passwd *)buf;
+    pw_ptr = &pw;
     memset(pw_ptr, 0, sizeof(struct passwd));
-  } while (
-      CHECK_FUEL_EXPR((pw_ptr = NULL, e = ENOSYS),
-                      ((e = getpwuid_r(getuid(), pw_ptr,
-                                       (char *)buf + sizeof(struct passwd),
-                                       size, &pw_ptr)) &&
-                       e == ERANGE)));
+  } while (CHECK_FUEL_EXPR(
+      (pw_ptr = NULL, e = ENOSYS),
+      ((e = getpwuid_r(getuid(), pw_ptr, buf, size, &pw_ptr)) &&
+       e == ERANGE)));
   if (pw_ptr == NULL) {
     free(buf);
     assert(e);
     errno = e;
     return NULL;
   }
-  *freeptr = pw_ptr;
+  *freeptr = buf;
   return pw_ptr->pw_dir;
 }
 
@@ -159,7 +167,9 @@ static OsHandle openfile(MyChar *ptr, int mode) {
  * Don't fail if the containing directory already exists. */
 static int create_directory_and_file(struct StringBuf *buf) {
   char *const terminus = strrchr(buf->buf, '/');
+  char *dummybuf = NULL;
   int dir_fd = -1, file_fd = -1;
+  assert(buf->buf_capacity - buf->buf_length > 17);
   assert(NULL != terminus && "create_directory_and_file passed a pathname "
                              "with no path separator!");
   *terminus = '\0';
@@ -167,24 +177,43 @@ static int create_directory_and_file(struct StringBuf *buf) {
     goto fail;
   if ((dir_fd = open(buf->buf, O_DIRECTORY | O_RDONLY | O_CLOEXEC)) < 0)
     goto fail;
+  if (fchmod(dir_fd, 0700) < 0)
+    goto fail;
   *terminus = '/';
-  file_fd = openat(dir_fd, terminus + 1,
-                   O_RDWR | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
-  if (file_fd < 0)
+  dummybuf = strdup(terminus + 1);
+  if (dummybuf == NULL)
     goto fail;
-  /* According to the man page, this is necessary to ensure that other
-   * processes see the newly-created file */
-  if (fsync(dir_fd) < 0)
-    goto fail;
-  if (close(dir_fd) < 0) {
-    /* darn... */
-    dir_fd = -1;
+
+  while (1) {
+    uint64_t rnd;
+    if (sliprock_randombytes_sysrandom_buf(&rnd, sizeof rnd) < 0)
+      goto fail;
+    StringBuf_add_hex(buf, rnd);
+    file_fd =
+        openat(dir_fd, terminus + 1, O_RDWR | O_CREAT | O_CLOEXEC, 0600);
+    assert(file_fd >= 0);
+    if (file_fd >= 0 || EEXIST != errno)
+      break;
+    buf->buf -= 16;
+  }
+  if (renameat(dir_fd, terminus + 1, dir_fd, dummybuf) < 0) {
     goto fail;
   }
-  return file_fd;
-fail:
-  if (file_fd != -1)
+  if (file_fd >= 0) {
+    /* According to the man page, this is necessary to ensure that other
+     * processes see the newly-created file */
+    if (fsync(dir_fd) >= 0) {
+      if (close(dir_fd) >= 0) {
+        free(dummybuf);
+        return file_fd;
+      }
+      /* darn... */
+      dir_fd = -1;
+    }
     close(file_fd);
+  }
+fail:
+  free(dummybuf);
   if (dir_fd != -1)
     close(dir_fd);
   *terminus = '/';
@@ -262,8 +291,8 @@ retry:
   }
   connection->has_socket = 1;
   StringBuf_add_char(&buf, '/');
-  StringBuf_add_hex(&buf, tmp[0]);
-  StringBuf_add_hex(&buf, tmp[1]);
+  for (int i = 0; i < 2; ++i)
+    StringBuf_add_hex(&buf, tmp[i]);
   return 0;
 }
 
@@ -278,19 +307,29 @@ SliprockHandle sliprock_connect(const struct SliprockReceiver *receiver) {
 #ifdef SLIPROCK_NO_SOCK_CLOEXEC
   set_cloexec(sock);
 #endif
-  if (connect(sock, &receiver->sock, sizeof(struct sockaddr_un)) < 0)
-    goto oserr;
-  if (read(sock, pw_received, sizeof pw_received) < 32)
-    goto badpass;
-  if (sliprock_secure_compare_memory(pw_received, receiver->passcode, 32))
-    goto badpass;
-  return (SliprockHandle)sock;
-badpass:
+  if (connect(sock, &receiver->sock, sizeof(struct sockaddr_un)) < 0) {
+    hclose(sock);
+    return (SliprockHandle)SLIPROCK_EOSERR;
+  }
+  size_t remaining = sizeof pw_received;
+  unsigned char *read_ptr = pw_received;
+  while (remaining > 0) {
+    ssize_t num_read = read(sock, read_ptr, remaining);
+    if (num_read <= 0)
+      break;
+    if (remaining >= (size_t)num_read) {
+      if (0 == sliprock_secure_compare_memory(pw_received,
+                                              receiver->passcode, 32))
+        return (SliprockHandle)sock;
+      else
+        break;
+    } else {
+      remaining -= (size_t)num_read;
+      read_ptr += num_read;
+    }
+  }
   hclose(sock);
   return (SliprockHandle)SLIPROCK_EBADPASS;
-oserr:
-  hclose(sock);
-  return (SliprockHandle)SLIPROCK_EOSERR;
 }
 #define UNIX_CONST const
 #endif
