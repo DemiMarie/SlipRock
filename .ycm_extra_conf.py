@@ -132,7 +132,6 @@ def FlagsForFile( filename, **kwargs ):
   p = os.path
   fname = p.basename(filename)
   if database:
-    assert False
     # Bear in mind that compilation_info.compiler_flags_ does NOT return a
     # python list, but a "list-like" StringVec object
     if fname == 'sliprock_unix.h' or fname == 'sliprock_windows.h':
@@ -157,6 +156,14 @@ def FlagsForFile( filename, **kwargs ):
   if p.splitext(fname)[1] == '.cpp':
     final_flags[final_flags.index('-std=c99')] = '-std=c++11'
     final_flags[final_flags.index('c')] = 'c++'
+    final_flags += [
+            '-Wno-old-style-cast',
+            '-Wno-c++98-compat',
+            '-Wno-c++98-compat-pedantic',
+            '-Wno-disabled-macro-expansion',
+            '-Wno-c99-extensions',
+            '-Wno-global-constructors',
+            ]
 
   return {
     'flags': final_flags,
