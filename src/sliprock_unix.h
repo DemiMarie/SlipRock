@@ -283,6 +283,7 @@ retry:
   StringBuf_add_literal(&buf, "/tmp/sliprock.");
   StringBuf_add_decimal(&buf, (uintptr_t)getpid());
   StringBuf_add_char(&buf, '.');
+  StringBuf_add_hex(&buf, *tmp);
   CHECK_FUEL(return -1);
   if (makedir(CON_PATH(connection)) < 0) {
     if (errno == EEXIST)
@@ -291,8 +292,7 @@ retry:
   }
   connection->has_socket = 1;
   StringBuf_add_char(&buf, '/');
-  for (int i = 0; i < 2; ++i)
-    StringBuf_add_hex(&buf, tmp[i]);
+  StringBuf_add_hex(&buf, tmp[1]);
   return 0;
 }
 
