@@ -65,6 +65,7 @@ else()
 endif()
 
 add_subdirectory(src)
+add_subdirectory(interactive)
 if (SLIPROCK_ENABLE_WIP)
    add_subdirectory(wip)
 endif()
