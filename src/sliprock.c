@@ -98,29 +98,32 @@ static int get_fname(const char *const srcname, const size_t size,
                      uint32_t pid, int *innerlen, uint16_t extraspace,
                      struct StringBuf *fname_buf) {
   void *freeptr = NULL;
-
+  size_t innerlen_, newsize, homelen;
+  int status = -1;
+  const MyChar *homedir;
+  UNIX_CONST MyChar *decoded_srcname;
   assert(sliprock_check_charset(srcname, size) == 0 &&
          "Bogus characters in connection name should have been detected "
          "earlier!");
   assert(size <= INT_MAX &&
          "Attempt to create connection with identifier length > INT_MAX!");
 
-  UNIX_CONST MyChar *const decoded_srcname = CopyIdent(srcname, size);
+  decoded_srcname = CopyIdent(srcname, size);
   if (NULL == decoded_srcname)
     goto fail;
 
-  const MyChar *const homedir = sliprock_get_home_directory(&freeptr);
+  homedir = sliprock_get_home_directory(&freeptr);
   if (NULL == homedir)
     goto fail;
 
-  const size_t homelen = MyStrlen(homedir);
+  homelen = MyStrlen(homedir);
   if (homelen > UINT16_MAX) {
     errno = ERANGE;
     goto fail;
   }
 
-  const size_t newsize = size + sizeof "/.sliprock/..sock" + 20 /* pid */ +
-                         homelen + extraspace;
+  newsize = size + sizeof "/.sliprock/..sock" + 20 /* pid */ + homelen +
+            extraspace;
   if (extraspace > UINT16_MAX || newsize > UINT16_MAX - extraspace) {
     errno = ERANGE;
     goto fail;
@@ -129,7 +132,7 @@ static int get_fname(const char *const srcname, const size_t size,
   if (StringBuf_alloc(newsize + extraspace, fname_buf) < 0)
     goto fail;
 
-  size_t innerlen_ = homelen + sizeof "/.sliprock" - 1;
+  innerlen_ = homelen + sizeof "/.sliprock" - 1;
   assert(innerlen_ < INT_MAX / 2 &&
          "inner length is greater than outer length!");
   StringBuf_add_string(fname_buf, homedir, homelen);
@@ -141,17 +144,17 @@ static int get_fname(const char *const srcname, const size_t size,
   errno = 0;
   if (innerlen)
     *innerlen = (int)innerlen_;
+  status = 0;
   goto success;
 fail:
   if (innerlen)
     *innerlen = 0;
   free(fname_buf->buf);
   memset(fname_buf, 0, sizeof *fname_buf);
-  return -1;
 success:
   free(freeptr);
   FreeIdent(decoded_srcname);
-  return 0;
+  return status;
 }
 
 static int sliprock_bind(struct SliprockConnection *con) {
