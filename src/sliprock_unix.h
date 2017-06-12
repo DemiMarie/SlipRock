@@ -42,6 +42,10 @@
 
 #define T(x) ("" x)
 
+#define MAX_SOCK_LEN                                                      \
+  (sizeof "/tmp/sliprock." - 1 /* terminating NUL */ +                    \
+   20 /* PID as int */ + 1 /* '.'' */ + 16 /* 16 random bytes */ +        \
+   1 /* '/' */ + 16 /* 16 random bytes */ + 1 /* terminating NUL */)
 /* The maximum length of socket path (including terminating NUL) */
 #define UNIX_PATH_LEN                                                     \
   (sizeof(struct sockaddr_un) - offsetof(struct sockaddr_un, sun_path))
@@ -160,7 +164,7 @@ static int makedir(MyChar *ptr) { return mkdir(ptr, 0700); }
 
 /* Open a file */
 static OsHandle openfile(MyChar *ptr, int mode) {
-  return open(ptr, mode, 0700);
+  return open(ptr, mode, 0600);
 }
 
 /* Create a file, and (if necessary) the containing directory.
@@ -225,13 +229,13 @@ static int write_connection(OsHandle fd, struct SliprockConnection *con) {
   struct iovec vec[] = {
       {SLIPROCK_MAGIC, sizeof SLIPROCK_MAGIC - 1},
       {con->passwd, sizeof con->passwd},
-      {&con->address, sizeof con->address},
+      {&con->address.sun_path, MAX_SOCK_LEN},
   };
-  int q = writev(fd, vec, 3) ==
-                  sizeof con->address + sizeof con->passwd +
-                      sizeof SLIPROCK_MAGIC - 1
-              ? 0
-              : -1;
+  int q =
+      writev(fd, vec, 3) ==
+              MAX_SOCK_LEN + sizeof con->passwd + sizeof SLIPROCK_MAGIC - 1
+          ? 0
+          : -1;
   return q;
 }
 
@@ -249,13 +253,14 @@ static void delete_socket(struct SliprockConnection *connection) {
 static ssize_t
 read_receiver(OsHandle fd, struct SliprockReceiver *receiver,
               char magic[static sizeof SLIPROCK_MAGIC - 1]) {
+  memset(&receiver->sock, 0, sizeof receiver->sock);
+  receiver->sock.sun_family = AF_UNIX;
   struct iovec vecs[] = {
       {magic, sizeof SLIPROCK_MAGIC - 1},
       {receiver->passcode, sizeof receiver->passcode},
-      {&receiver->sock, sizeof receiver->sock},
+      {&receiver->sock.sun_path, MAX_SOCK_LEN},
   };
-  ssize_t res = readv(fd, vecs, 3);
-  return receiver->sock.sun_family == AF_UNIX ? res : -1;
+  return readv(fd, vecs, 3);
 }
 
 #ifndef __linux__
@@ -268,9 +273,8 @@ static int sliprock_fsync(int fd) { return fsync(fd); }
 static int make_sockdir(struct SliprockConnection *connection) {
   /* Temporary buffer used for random numbers */
   uint64_t tmp[2];
-  (void)SLIPROCK_STATIC_ASSERT(sizeof CON_PATH(connection) >
-                               sizeof "/tmp/sliprock." - 1 + 20 + 1 + 16 +
-                                   1 + 16 + 1);
+  (void)SLIPROCK_STATIC_ASSERT(sizeof CON_PATH(connection) > MAX_SOCK_LEN);
+  (void)SLIPROCK_STATIC_ASSERT(MAX_SOCK_LEN == 69);
 
 retry:
   CHECK_FUEL(return -1);
@@ -278,8 +282,7 @@ retry:
     return -1;
   CHECK_FUEL(return -1);
   struct StringBuf buf;
-  StringBuf_init(&buf, sizeof CON_PATH(connection), 0,
-                 CON_PATH(connection));
+  StringBuf_init(&buf, MAX_SOCK_LEN, 0, CON_PATH(connection));
   StringBuf_add_literal(&buf, "/tmp/sliprock.");
   StringBuf_add_decimal(&buf, (uintptr_t)getpid());
   StringBuf_add_char(&buf, '.');
