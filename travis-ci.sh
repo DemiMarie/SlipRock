@@ -5,10 +5,10 @@ rm -rf build
 mkdir build
 cd build
 if command -v ninja; then
-    cmake .. -GNinja
+    cmake .. -GNinja -DCMAKE_BUILD_TYPE=Debug
     ninja
 else
-    cmake ..
+    cmake .. -DCMAKE_BUILD_TYPE=Debug
     make
 fi
 src/mytest
