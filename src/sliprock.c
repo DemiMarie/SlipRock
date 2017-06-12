@@ -119,8 +119,8 @@ static int get_fname(const char *const srcname, const size_t size,
     goto fail;
   }
 
-  const size_t newsize = size + sizeof "/.sliprock/..sock" +
-                         20 /* pid */ + homelen + extraspace;
+  const size_t newsize = size + sizeof "/.sliprock/..sock" + 20 /* pid */ +
+                         homelen + extraspace;
   if (extraspace > UINT16_MAX || newsize > UINT16_MAX - extraspace) {
     errno = ERANGE;
     goto fail;
@@ -161,8 +161,8 @@ static int sliprock_bind(struct SliprockConnection *con) {
   assert(sliprock_check_charset(con->name, con->namelen) == 0 &&
          "Bogus characters in connection name should have been detected "
          "earlier!");
-  if (get_fname(con->name, con->namelen, (uint32_t)getpid(), &res,
-                17, &con->path) < 0) {
+  if (get_fname(con->name, con->namelen, (uint32_t)getpid(), &res, 17,
+                &con->path) < 0) {
     return -1;
   }
   if (sliprock_randombytes_sysrandom_buf(con->passwd, sizeof con->passwd) <
@@ -268,9 +268,10 @@ sliprock_open(const char *const identifier, size_t size, uint32_t pid) {
     goto fail;
   {
     ssize_t res = read_receiver(fd, receiver, magic);
-    if (res < (ssize_t)(sizeof magic + sizeof receiver->passcode +
-                        sizeof receiver->sock))
+    if (res < (ssize_t)MAX_SOCK_LEN) {
+      errno = EINVAL;
       goto fail;
+    }
   }
   if (memcmp(magic, SLIPROCK_MAGIC, sizeof SLIPROCK_MAGIC - 1))
     goto fail;
