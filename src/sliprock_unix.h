@@ -160,7 +160,7 @@ static const char *sliprock_get_home_directory(void **freeptr) {
 }
 
 /* Create a directory with suitable permissions */
-static int makedir(MyChar *ptr) { return mkdir(ptr, 0600); }
+static int makedir(MyChar *ptr) { return mkdir(ptr, 0700); }
 
 /* Open a file */
 static OsHandle openfile(MyChar *ptr, int mode) {
