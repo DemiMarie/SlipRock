@@ -1,4 +1,13 @@
+#ifdef __GLIBC__
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored - Wreserved - id - macro
+#endif
 #define _GNU_SOURCE
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+#endif
 #include <ctype.h>
 #include <errno.h>
 #include <getopt.h>
@@ -8,9 +17,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <sys/socket.h>
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static const char *const helptxt =
@@ -23,6 +32,7 @@ static const char *const helptxt =
     "   -h, -?, --help          print this message\n"
     "   -v, --version           print version information\n"
     "   -V, --verbose           be verbose\n"
+    "   --pid-file=FILE         write PID to FILE\n"
     "   --                      indicates end of options\n";
 
 __attribute__((noreturn)) static void stdout_error(void) {
@@ -121,8 +131,8 @@ int main(int argc, char **argv) {
       {"pid-file", required_argument, NULL, 'p'},
       {0, 0, 0, 0},
   };
-  while ((res = getopt_long(argc, argv, ":vh?p:", long_options, &option_index)) !=
-         -1) {
+  while ((res = getopt_long(argc, argv, ":vh?p:", long_options,
+                            &option_index)) != -1) {
     switch (res) {
     case ':':
       return 1;
@@ -137,7 +147,8 @@ int main(int argc, char **argv) {
       stdout_error();
     case 'p': {
       FILE *f = fopen(optarg, "w");
-      if (!f) fail("fopen");
+      if (!f)
+        fail("fopen");
       if (fprintf(f, "%d", getpid()) < 0)
         fail("fprintf");
       if (fflush(f) < 0)
