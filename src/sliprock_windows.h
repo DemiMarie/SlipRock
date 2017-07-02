@@ -11,9 +11,9 @@
 #define _UNICODE
 #endif
 
-#include <src/stringbuf.h>
 #include <assert.h>
 #include <processthreadsapi.h>
+#include <src/stringbuf.h>
 #include <stdio.h>
 #include <userenv.h>
 #include <windows.h>
@@ -279,7 +279,8 @@ SliprockHandle sliprock_connect(const struct SliprockReceiver *receiver) {
     SetLastError(ERROR_ACCESS_DENIED);
     goto fail;
   }
-  if (sliprock_secure_compare_memory(pass, receiver->passcode, sizeof pass)) {
+  if (sliprock_secure_compare_memory(pass, receiver->passcode,
+                                     sizeof pass)) {
     SetLastError(ERROR_ACCESS_DENIED);
     goto fail;
   }

@@ -15,6 +15,7 @@
 #endif
 #include <stdint.h>
 
+#include "config.h"
 #include "include/sliprock.h"
 #include "src/stringbuf.h"
 #ifdef _WIN32

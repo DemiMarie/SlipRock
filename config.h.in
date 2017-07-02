@@ -1,0 +1,2 @@
+#cmakedefine HAVE_OPENAT 1
+#cmakedefine HAVE_RENAMEAT 1

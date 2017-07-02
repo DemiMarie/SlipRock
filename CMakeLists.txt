@@ -47,6 +47,11 @@ endfunction()
 
 check_compiler_lang_flags(C "${c_flag_list}")
 
+# Check for openat()
+set(AT_HEADERS sys/stat.h sys/types.h fcntl.h)
+check_symbol_exists(openat "${AT_HEADERS}" HAVE_OPENAT)
+check_symbol_exists(renameat "fcntl.h;stdio.h" HAVE_RENAMEAT)
+
 find_package(Boost COMPONENTS unit_test_framework)
 
 find_package(Threads)
@@ -69,4 +74,7 @@ add_subdirectory(interactive)
 if (SLIPROCK_ENABLE_WIP)
    add_subdirectory(wip)
 endif()
+
+configure_file(config.h.in config.h)
+
 install(FILES include/sliprock.h DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")

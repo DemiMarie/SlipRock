@@ -184,7 +184,11 @@ static int create_directory_and_file(struct StringBuf *buf) {
   if (fchmod(dir_fd, 0700) < 0)
     goto fail;
   *terminus = '/';
+#ifdef HAVE_RENAMEAT
   dummybuf = strdup(terminus + 1);
+#else
+  dummybuf = strdup(buf->buf);
+#endif
   if (dummybuf == NULL)
     goto fail;
 
@@ -193,16 +197,26 @@ static int create_directory_and_file(struct StringBuf *buf) {
     if (sliprock_randombytes_sysrandom_buf(&rnd, sizeof rnd) < 0)
       goto fail;
     StringBuf_add_hex(buf, rnd);
-    file_fd =
-        openat(dir_fd, terminus + 1, O_RDWR | O_CREAT | O_CLOEXEC, 0600);
+#ifdef HAVE_OPENAT
+    file_fd = openat(dir_fd, terminus + 1,
+                     O_RDWR | O_CREAT | O_CLOEXEC | O_EXCL, 0600);
+#else
+    file_fd = open(buf->buf, O_RDWR | O_CREAT | O_CLOEXEC | O_EXCL, 0600);
+#endif
     assert(file_fd >= 0);
     if (file_fd >= 0 || EEXIST != errno)
       break;
     buf->buf -= 16;
   }
+#ifdef HAVE_RENAMEAT
   if (renameat(dir_fd, terminus + 1, dir_fd, dummybuf) < 0) {
     goto fail;
   }
+#else
+  if (rename(buf->buf, dummybuf) < 0) {
+    goto fail;
+  }
+#endif
   if (file_fd >= 0) {
     /* According to the man page, this is necessary to ensure that other
      * processes see the newly-created file */
