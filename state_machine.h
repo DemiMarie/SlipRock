@@ -1,9 +1,9 @@
 #ifndef STATE_MACHINE_H_INCLUDED
 #define STATE_MACHINE_H_INCLUDED STATE_MACHINE_H_INCLUDED
+#include <ntsecapi.h>
 #include <stdint.h>
 #include <windows.h>
 #include <winsock2.h>
-#include <ntsecapi.h>
 #define SIZEOF_NONCE 16
 #define SIZEOF_HASH 32
 #define KEYLEN 32
@@ -35,8 +35,7 @@ typedef struct SConnection {
 struct CConnection {
   char key[KEYLEN];
   unsigned char nonce[SIZEOF_NONCE];
-  unsigned char hash[SIZEOF_HASH]
-  SOCKADDR_STORAGE sockaddr;
+  unsigned char hash[SIZEOF_HASH] SOCKADDR_STORAGE sockaddr;
   const InitState *init;
   SOCKET sock;
   enum {
@@ -55,9 +54,7 @@ struct CConnection {
   char receive_buf[NONCELEN + sizeof(SOCKADDR_STORAGE) + HASH_SIZE];
 };
 int mac_nonce_and_data(struct CConnection *const con,
-                       const SOCKADDR_STORAGE *addr,
-                       const size_t addr_len,
+                       const SOCKADDR_STORAGE *addr, const size_t addr_len,
                        const unsigned char nonce[static SIZEOF_NONCE],
                        unsigned char hash[static SIZEOF_HASH]);
 #endif /* !defined STATE_MACHINE_H_INCLUDED */
-

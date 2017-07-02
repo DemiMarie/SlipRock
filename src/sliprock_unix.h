@@ -44,8 +44,9 @@
 
 #define MAX_SOCK_LEN                                                      \
   (sizeof "/tmp/sliprock." - 1 /* terminating NUL */ +                    \
-   20 /* PID as int */ + 1 /* '.'' */ + 16 /* 16 random bytes */ +        \
+   20 /* PID as int */ + 1 /* '.' */ + 16 /* 16 random bytes */ +         \
    1 /* '/' */ + 16 /* 16 random bytes */ + 1 /* terminating NUL */)
+
 /* The maximum length of socket path (including terminating NUL) */
 #define UNIX_PATH_LEN                                                     \
   (sizeof(struct sockaddr_un) - offsetof(struct sockaddr_un, sun_path))
