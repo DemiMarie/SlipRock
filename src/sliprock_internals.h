@@ -21,7 +21,9 @@ typedef int OsHandle;
 #endif
 #include "stringbuf.h"
 
-#define PIPE_SIZE (sizeof "\\\\?\\pipe\\SlipRock\\4294967295\\" + 16)
+#ifdef _WIN32
+#define MAX_SOCK_LEN (sizeof "\\\\?\\pipe\\SlipRock\\4294967295\\" + 16)
+#endif
 /* The actual connection struct */
 struct SliprockConnection {
   size_t namelen;
@@ -30,7 +32,7 @@ struct SliprockConnection {
   unsigned char passwd[32];
   OsHandle fd;
 #ifdef _WIN32
-  wchar_t pipename[PIPE_SIZE];
+  wchar_t pipename[MAX_SOCK_LEN];
 #else
   struct sockaddr_un address;
 #endif
@@ -45,7 +47,7 @@ struct SliprockReceiver {
 #ifndef _WIN32
   struct sockaddr_un sock; /**< The pathname of the socket */
 #else
-  wchar_t sock[PIPE_SIZE];
+  wchar_t sock[MAX_SOCK_LEN];
 #endif
 };
 

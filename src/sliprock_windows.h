@@ -26,7 +26,7 @@ typedef HANDLE OsHandle;
 #define O_RDWR 3
 #define O_RDONLY 2
 #define O_WRONLY 1
-
+#ifdef SLIPROCK_WIN_DBG
 static void sliprock_strerror(void) {
   wchar_t *buf;
   DWORD buflen;
@@ -36,6 +36,7 @@ static void sliprock_strerror(void) {
                 NULL, GetLastError(), 0, (LPTSTR)&buf, 0, NULL);
   WriteConsoleW(GetStdHandle(-12), buf, wcslen(buf), &buflen, NULL);
 }
+#endif
 
 static OsHandle openfile(MyChar *path, int mode) {
   int osmode = 0;
@@ -52,11 +53,13 @@ static OsHandle openfile(MyChar *path, int mode) {
   }
   HANDLE h = CreateFileW(path, osmode, 0, &sec, creation_mode,
                          FILE_ATTRIBUTE_NORMAL, NULL);
+#if SLIPROCK_WIN_DEBUG
   if (h == INVALID_HANDLE_VALUE) {
     DWORD q;
     WriteConsoleW(GetStdHandle(-12), path, wcslen(path), &q, NULL);
     sliprock_strerror();
   }
+#endif
   return h;
 }
 #ifdef _MSC_VER
@@ -241,17 +244,34 @@ fail:
   return (SliprockHandle)INVALID_HANDLE_VALUE;
 }
 
+static DWORD sliprock_read_all(HANDLE hnd, void *buf, DWORD size) {
+  char *buf_ = buf;
+  size_t original_size = size;
+  DWORD read;
+  do {
+    if (!ReadFile(hnd, buf, size, &read, 0))
+      return (char *)buf - buf_;
+    if (read > size)
+      abort();
+    size -= read, buf += read;
+  } while (read != size);
+  return (char *)buf - buf_;
+}
+
 static ssize_t read_receiver(OsHandle fd,
                              struct SliprockReceiver *receiver,
                              char magic[static MAGIC_SIZE]) {
   char buf[sizeof SLIPROCK_MAGIC - 1 + sizeof receiver->passcode +
            sizeof receiver->sock];
   char *buf2 = buf;
-  (void)SLIPROCK_STATIC_ASSERT(MAGIC_SIZE == sizeof SLIPROCK_MAGIC - 1),
-      (void)magic;
   DWORD read;
-  if (ReadFile(fd, buf, sizeof buf, &read, NULL) == 0)
-    return -1;
+  (void)SLIPROCK_STATIC_ASSERT(MAGIC_SIZE == sizeof SLIPROCK_MAGIC - 1);
+  (void)magic;
+  read = sliprock_read_all(fd, buf, sizeof buf);
+  if (read != sizeof buf) {
+    SetLastError(ERROR_ACCESS_DENIED);
+    return 0;
+  }
   memcpy(magic, buf, MAGIC_SIZE);
   buf2 += MAGIC_SIZE;
   memcpy(receiver->passcode, buf2, sizeof receiver->passcode);
@@ -265,7 +285,7 @@ static int sliprock_bind_os(struct SliprockConnection *connection) {
 }
 
 SliprockHandle sliprock_connect(const struct SliprockReceiver *receiver) {
-  HANDLE hPipe = CreateFile(
+  HANDLE hPipe = CreateFileW(
       receiver->sock, GENERIC_READ | GENERIC_WRITE,
       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
       OPEN_EXISTING, SECURITY_SQOS_PRESENT | SECURITY_ANONYMOUS, NULL);
@@ -273,9 +293,7 @@ SliprockHandle sliprock_connect(const struct SliprockReceiver *receiver) {
     return (SliprockHandle)hPipe;
   unsigned char pass[sizeof receiver->passcode];
   DWORD read;
-  if (ReadFile(hPipe, pass, sizeof pass, &read, NULL) == 0)
-    goto fail;
-  if (read != sizeof pass) {
+  if (sliprock_read_all(hPipe, pass, sizeof pass) != sizeof pass) {
     SetLastError(ERROR_ACCESS_DENIED);
     goto fail;
   }
