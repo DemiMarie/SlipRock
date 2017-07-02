@@ -23,10 +23,10 @@
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static const char *const helptxt =
-    "Usage: %s [options] [--] [peer pid] name\n"
+    "Usage: %s [options] [--] [PID] NAME\n"
     "\n"
-    "Serves one connection (and then exits) on _name_, or\n"
-    " (if _pid_ is provided) connects to the pipe _name_ with pid _pid_.\n"
+    "Serves one connection (and then exits) on NAME, or\n"
+    "(if PID is provided) connects to the pipe NAME with pid PID.\n"
     "\n"
     "Options:\n"
     "   -h, -?, --help          print this message\n"
@@ -143,7 +143,7 @@ int main(int argc, char **argv) {
     case '?':
       usage(argc, argv);
     case 'v':
-      puts("SlipRock interactive client/server, version 0.1");
+      puts("SlipRock CLI, version 0.1");
       stdout_error();
     case 'p': {
       FILE *f = fopen(optarg, "w");
