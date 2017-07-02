@@ -56,16 +56,15 @@ sliprock_randombytes_sysrandom_buf(void *const buf, const size_t size);
 /* The "fuel" mechanism, used to test for robustness in error conditions.
  */
 #ifdef SLIPROCK_DEBUG_FUEL
-#include <stdatomic.h>
 _Atomic ssize_t sliprock_fuel;
 #define CHECK_FUEL(x)                                                     \
-  if (atomic_fetch_add(&sliprock_fuel, -1) < 0) {                         \
+  if (__atomic_fetch_add(&sliprock_fuel, -1) < 0) {                       \
     x;                                                                    \
   } else                                                                  \
     do {                                                                  \
     } while (0)
 #define CHECK_FUEL_EXPR(error, expr)                                      \
-  (atomic_fetch_add(&sliprock_fuel, -1) < 0 ? (error) : (expr))
+  (__atomic_fetch_add(&sliprock_fuel, -1) < 0 ? (error) : (expr))
 #define malloc sliprock_malloc
 #define realloc sliprock_realloc
 #define calloc sliprock_calloc

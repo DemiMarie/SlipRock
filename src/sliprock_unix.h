@@ -25,9 +25,9 @@
 #include <sys/un.h>
 #include <unistd.h>
 
-#include "sliprock_internals.h"
-#include "stringbuf.h"
-#include <sliprock.h>
+#include <include/sliprock.h>
+#include <src/sliprock_internals.h>
+#include <src/stringbuf.h>
 #define hclose close
 
 #define sliprock_unlink unlink

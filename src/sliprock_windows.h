@@ -11,7 +11,7 @@
 #define _UNICODE
 #endif
 
-#include "stringbuf.h"
+#include <src/stringbuf.h>
 #include <assert.h>
 #include <processthreadsapi.h>
 #include <stdio.h>

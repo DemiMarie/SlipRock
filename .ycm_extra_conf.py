@@ -49,7 +49,7 @@ flags = [
 # relevant for c++ headers.
 # For a C project, you would set this to 'c' instead of 'c++'.
 '-x', 'c', '-I', os.path.join(DirectoryOfThisScript(), 'src'),
-'-Iinclude',
+'-I.',
 '-Weverything',
 '-Werror',
 #'-I', '/usr/x86_64-w64-mingw32/sys-root/mingw/include/',

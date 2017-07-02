@@ -5,7 +5,7 @@
             "includePath": [
                 "/usr/include",
                 "/usr/local/include",
-                "include"
+                "."
             ],
             "browse": {
                 "limitSymbolsToIncludedHeaders": true,
@@ -17,7 +17,7 @@
             "includePath": [
                 "/usr/include",
                 "/usr/local/include",
-                "include"
+                "."
             ],
             
             "browse": {
@@ -29,7 +29,7 @@
             "name": "Win32",
             "includePath": [
                 "C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC/include/*",
-                "include"
+                "."
             ],
             "browse": {
                 "limitSymbolsToIncludedHeaders": true,

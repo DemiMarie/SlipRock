@@ -15,12 +15,12 @@
 #endif
 #include <stdint.h>
 
-#include "sliprock.h"
-#include "stringbuf.h"
+#include "include/sliprock.h"
+#include "src/stringbuf.h"
 #ifdef _WIN32
-#include "sliprock_windows.h"
+#include "src/sliprock_windows.h"
 #else
-#include "sliprock_unix.h"
+#include "src/sliprock_unix.h"
 #endif
 #include <ctype.h>
 #include <stddef.h>
