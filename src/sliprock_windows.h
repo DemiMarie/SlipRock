@@ -259,7 +259,7 @@ static DWORD sliprock_read_all(HANDLE hnd, void *buf, DWORD size) {
 
 static ssize_t sliprock_read_receiver(OsHandle fd,
                                       struct SliprockReceiver *receiver,
-                                      char magic[static MAGIC_SIZE]) {
+                                      char magic[STATIC_ARR MAGIC_SIZE]) {
   char buf[sizeof SLIPROCK_MAGIC - 1 + sizeof receiver->passcode +
            sizeof receiver->sock];
   char *buf2 = buf;

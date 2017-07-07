@@ -41,6 +41,11 @@ struct SliprockConnection {
   char name[];
 };
 
+#if defined __STDC_VERSION__ && __STDC_VERSION__ >= 199901L
+#define STATIC_ARR static
+#else
+#define STATIC_ARR
+#endif
 /* A receiver for SlipRock connections */
 struct SliprockReceiver {
   unsigned char passcode[32]; /**< The passcode of the connection */

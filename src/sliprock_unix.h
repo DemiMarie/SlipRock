@@ -265,9 +265,9 @@ static void delete_socket(struct SliprockConnection *connection) {
 }
 
 /* Read a receiver into a SliprockReceiver struct */
-static ssize_t
-sliprock_read_receiver(OsHandle fd, struct SliprockReceiver *receiver,
-                       char magic[static sizeof SLIPROCK_MAGIC - 1]) {
+static ssize_t sliprock_read_receiver(OsHandle fd,
+                                      struct SliprockReceiver *receiver,
+                                      char magic[STATIC_ARR MAGIC_SIZE]) {
   memset(&receiver->sock, 0, sizeof receiver->sock);
   receiver->sock.sun_family = AF_UNIX;
   struct iovec vecs[] = {
