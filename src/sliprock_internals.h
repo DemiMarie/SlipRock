@@ -1,6 +1,11 @@
 #ifndef SLIPROCK_INTERNALS_H_INCLUDED
 #define SLIPROCK_INTERNALS_H_INCLUDED SLIPROCK_INTERNALS_H_INCLUDED
 
+#ifndef _WIN32
+#include <sys/types.h>
+#elif defined _MSC_VER
+typedef intptr_t ssize_t
+#endif
 #define MAGIC_SIZE (sizeof SLIPROCK_MAGIC - 1)
 #ifdef SLIPROCK_TRACE
 #define MADE_IT                                                           \
