@@ -14,6 +14,7 @@
 #include <assert.h>
 #include <processthreadsapi.h>
 #include <src/stringbuf.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <userenv.h>
 #include <windows.h>
