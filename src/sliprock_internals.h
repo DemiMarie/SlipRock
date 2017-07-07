@@ -90,13 +90,11 @@ static void *sliprock_realloc(void *ptr, size_t size) {
   return realloc(ptr, size);
 }
 
-
 #else /* !defined SLIPROCK_DEBUG_FUEL */
 #define CHECK_FUEL(x)                                                     \
   do {                                                                    \
   } while (0)
 #define CHECK_FUEL_EXPR(x, y) (y)
 #endif /* SLIPROCK_DEBUG_FUEL */
-
 
 #endif
