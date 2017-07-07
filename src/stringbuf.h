@@ -1,9 +1,5 @@
 #ifndef SLIPROCK_STRINGBUF_H_INCLUDED
 #define SLIPROCK_STRINGBUF_H_INCLUDED SLIPROCK_STRINGBUF_H_INCLUDED
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -25,6 +21,10 @@ extern "C" {
 #else
 typedef char TCHAR;
 #endif
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
 struct StringBuf {
   TCHAR *buf;                  /**< The actual buffer */

@@ -18,6 +18,9 @@
  */
 /* Taken from libsodium */
 
+#ifdef _MSC_VER
+#define __attribute__(x) syntax error!
+#endif
 /* From utils.h */
 #ifndef SODIUM_C99
 #if defined(__cplusplus) || !defined(__STDC_VERSION__) ||                 \

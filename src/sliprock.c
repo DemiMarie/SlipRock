@@ -2,6 +2,10 @@
 #define SLIPROCK_INTERNALS
 #define _UNICODE
 #define UNICODE
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
 #endif
 #ifdef __linux__
 #ifdef __clang__

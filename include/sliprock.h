@@ -10,7 +10,9 @@ extern "C" {
 #endif
 #include <assert.h>
 #ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
 #include <windows.h>
 #ifdef SLIPROCK_INTERNALS
 #define SLIPROCK_API __declspec(dllexport)

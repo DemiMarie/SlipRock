@@ -15,7 +15,7 @@ environment:
       configuration: Debug
 
 before_build:
-  - 'cmake . -G "Visual Studio 15 2015 Win64" -DCMAKE_INSTALL_PREFIX=C:\Projects\libs "-DCMAKE_BUILD_TYPE=%CONFIGURATION%"'
+  - 'cmake . -G "Visual Studio 14 2015 Win64" -DCMAKE_INSTALL_PREFIX=C:\Projects\libs "-DCMAKE_BUILD_TYPE=%CONFIGURATION%"'
 
 build:
   project: INSTALL.vcxproj
