@@ -53,8 +53,10 @@ static inline void StringBuf_init(struct StringBuf *buf,
   };
   memcpy(buf, &buf_, sizeof buf_);
 }
-
-__attribute__((warn_unused_result)) static inline int
+#if defined __GNUC__ || defined __INTEL_COMPILER
+__attribute__((warn_unused_result))
+#endif
+static inline int
 StringBuf_alloc(size_t const buf_capacity, struct StringBuf *const buf) {
   assert(buf_capacity < UINT16_MAX);
   TCHAR *val = (TCHAR *)calloc(buf_capacity, sizeof(TCHAR));

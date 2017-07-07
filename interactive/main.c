@@ -11,8 +11,8 @@
 #include <ctype.h>
 #include <errno.h>
 #include <getopt.h>
-#include <pthread.h>
 #include <include/sliprock.h>
+#include <pthread.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>

@@ -52,7 +52,10 @@ struct SliprockReceiver {
 };
 
 /* Cryptographic random number generation */
-__attribute__((warn_unused_result)) int
+#if defined __GNUC__ || defined __INTEL_COMPILER
+__attribute__((warn_unused_result))
+#endif
+ int
 sliprock_randombytes_sysrandom_buf(void *const buf, const size_t size);
 
 #define NOINLINE SLIPROCK_NOINLINE
