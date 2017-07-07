@@ -1,5 +1,6 @@
 #ifndef SLIPROCK_INTERNALS_H_INCLUDED
 #define SLIPROCK_INTERNALS_H_INCLUDED SLIPROCK_INTERNALS_H_INCLUDED
+
 #define MAGIC_SIZE (sizeof SLIPROCK_MAGIC - 1)
 #ifdef SLIPROCK_TRACE
 #define MADE_IT                                                           \
@@ -74,24 +75,24 @@ _Atomic ssize_t sliprock_fuel;
 #define CHECK_FUEL_EXPR(error, expr)                                      \
   (__atomic_fetch_add(&sliprock_fuel, -1) < 0 ? (error) : (expr))
 
-#define malloc sliprock_malloc
-#define realloc sliprock_realloc
-#define calloc sliprock_calloc
-
-static void *sliprock_malloc(size_t size) {
+inline void *sliprock_malloc(size_t size) {
   CHECK_FUEL(return NULL);
   return malloc(size);
 }
 
-static void *sliprock_calloc(size_t size1, size_t size2) {
+inline void *sliprock_calloc(size_t size1, size_t size2) {
   CHECK_FUEL(return NULL);
   return calloc(size1, size2);
 }
 
-static void *sliprock_realloc(void *ptr, size_t size) {
+inline void *sliprock_realloc(void *ptr, size_t size) {
   CHECK_FUEL(return NULL);
   return realloc(ptr, size);
 }
+
+#define malloc sliprock_malloc
+#define realloc sliprock_realloc
+#define calloc sliprock_calloc
 
 #else /* !defined SLIPROCK_DEBUG_FUEL */
 #define CHECK_FUEL(x)                                                     \
