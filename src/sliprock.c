@@ -17,6 +17,7 @@
 
 #include "config.h"
 #include "include/sliprock.h"
+#include "sliprock_internals.h"
 #include "src/stringbuf.h"
 #ifdef _WIN32
 #include "src/sliprock_windows.h"
@@ -252,6 +253,7 @@ sliprock_open(const char *const identifier, size_t size, uint32_t pid) {
   OsHandle fd;
   struct SliprockReceiver *receiver = NULL;
   struct StringBuf fname;
+  ssize_t res;
   memset(&fname, 0, sizeof fname);
   char magic[sizeof(SLIPROCK_MAGIC) - 1];
   if (sliprock_check_charset(identifier, size) != 0)
@@ -271,7 +273,7 @@ sliprock_open(const char *const identifier, size_t size, uint32_t pid) {
   if (NULL == receiver)
     goto fail;
   {
-    ssize_t res = sliprock_read_receiver(fd, receiver, magic);
+    res = sliprock_read_receiver(fd, receiver, magic);
     if (res < (ssize_t)MAX_SOCK_LEN) {
       errno = EINVAL;
       goto fail;

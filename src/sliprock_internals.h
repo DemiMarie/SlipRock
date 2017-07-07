@@ -1,10 +1,15 @@
 #ifndef SLIPROCK_INTERNALS_H_INCLUDED
 #define SLIPROCK_INTERNALS_H_INCLUDED SLIPROCK_INTERNALS_H_INCLUDED
 
+#include <stdint.h>
 #ifndef _WIN32
 #include <sys/types.h>
 #elif defined _MSC_VER
-typedef intptr_t ssize_t
+#ifdef _WIN64
+typedef __int64 ssize_t
+#else
+typedef __int32 ssize_t
+#endif
 #endif
 #define MAGIC_SIZE (sizeof SLIPROCK_MAGIC - 1)
 #ifdef SLIPROCK_TRACE
@@ -22,7 +27,7 @@ typedef HANDLE OsHandle;
 
 #include <sys/types.h>
 #include <sys/un.h>
-typedef char MyChar;
+    typedef char MyChar;
 typedef int OsHandle;
 #endif
 #include "stringbuf.h"
