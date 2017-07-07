@@ -12,7 +12,7 @@
 #include <errno.h>
 #include <getopt.h>
 #include <pthread.h>
-#include <sliprock.h>
+#include <include/sliprock.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,18 +22,18 @@
 #include <unistd.h>
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-static const char *const helptxt =
-    "Usage: %s [options] [--] [PID] NAME\n"
-    "\n"
-    "Serves one connection (and then exits) on NAME, or\n"
-    "(if PID is provided) connects to the pipe NAME with pid PID.\n"
-    "\n"
-    "Options:\n"
-    "   -h, -?, --help          print this message\n"
-    "   -v, --version           print version information\n"
-    "   -V, --verbose           be verbose\n"
-    "   --pid-file=FILE         write PID to FILE\n"
-    "   --                      indicates end of options\n";
+#define helptxt                                                                \
+  "Usage: %s [options] [--] [PID] NAME\n"                                      \
+  "\n"                                                                         \
+  "Serves one connection (and then exits) on NAME, or\n"                       \
+  "(if PID is provided) connects to the pipe NAME with pid PID.\n"             \
+  "\n"                                                                         \
+  "Options:\n"                                                                 \
+  "   -h, -?, --help          print this message\n"                            \
+  "   -v, --version           print version information\n"                     \
+  "   -V, --verbose           be verbose\n"                                    \
+  "   --pid-file=FILE         write PID to FILE\n"                             \
+  "   --                      indicates end of options\n"
 
 __attribute__((noreturn)) static void stdout_error(void) {
   fflush(stdout);
@@ -122,7 +122,6 @@ static void execute_server(const char *const name) {
 }
 
 int main(int argc, char **argv) {
-  int verbose = 0;
   int res, option_index;
   static const struct option long_options[] = {
       {"version", no_argument, NULL, 'v'},
@@ -137,7 +136,6 @@ int main(int argc, char **argv) {
     case ':':
       return 1;
     case 'V':
-      verbose = 1;
       break;
     case 'h':
     case '?':

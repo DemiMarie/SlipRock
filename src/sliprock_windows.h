@@ -246,7 +246,6 @@ fail:
 
 static DWORD sliprock_read_all(HANDLE hnd, void *buf, DWORD size) {
   char *buf_ = buf;
-  size_t original_size = size;
   DWORD read;
   do {
     if (!ReadFile(hnd, buf, size, &read, 0))
@@ -292,7 +291,6 @@ SliprockHandle sliprock_connect(const struct SliprockReceiver *receiver) {
   if (INVALID_HANDLE_VALUE == hPipe)
     return (SliprockHandle)hPipe;
   unsigned char pass[sizeof receiver->passcode];
-  DWORD read;
   if (sliprock_read_all(hPipe, pass, sizeof pass) != sizeof pass) {
     SetLastError(ERROR_ACCESS_DENIED);
     goto fail;

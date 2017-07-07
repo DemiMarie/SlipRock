@@ -125,7 +125,7 @@ static int get_fname(const char *const srcname, const size_t size,
 
   newsize = size + sizeof "/.sliprock/..sock" + 20 /* pid */ + homelen +
             extraspace;
-  if (extraspace > UINT16_MAX || newsize > UINT16_MAX - extraspace) {
+  if ((uint16_t)newsize > (uint16_t)UINT16_MAX - extraspace) {
     errno = ERANGE;
     goto fail;
   }

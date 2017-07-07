@@ -49,7 +49,7 @@ bool client(char (&buf)[size], SliprockConnection *con, bool &finished,
   char buf2[size + 1] = {0};
   bool read_succeeded = false;
   HANDLE fd = INVALID_HANDLE_VALUE;
-  system("ls -a ~/.sliprock");
+  (void)system("ls -a ~/.sliprock");
   SliprockReceiver *receiver =
       sliprock_open("dummy_valr", sizeof("dummy_val") - 1, (uint32_t)getpid());
   if (receiver == nullptr) {
@@ -141,11 +141,11 @@ bool server(char (&buf)[n], SliprockConnection *con, bool &finished,
   finished = true;
   return x;
 }
+#ifndef _WIN32
 static void donothing(int _) {
   (void)_;
   return;
 }
-#ifndef _WIN32
 static_assert(std::is_same<std::thread::native_handle_type, pthread_t>(),
               "Mismatched native handle type!");
 #elif 0
@@ -160,8 +160,9 @@ static void interrupt_thread(std::mutex &lock, const bool &read_done,
   if (!read_done) {
 #ifndef _WIN32
     pthread_kill(thread.native_handle(), SIGPIPE);
-#elif false
-    CancelSynchronousIo(thread.native_handle());
+#else
+    (void)thread;
+    //CancelSynchronousIo(thread.native_handle());
 #endif
   }
 }
@@ -174,7 +175,7 @@ BOOST_AUTO_TEST_CASE(can_create_connection) {
   sigaddset(&sigact.sa_mask, SIGPIPE);
   sigaction(SIGPIPE, &sigact, nullptr);
 #endif
-  system("rm -rf -- \"$HOME/.sliprock\" /tmp/sliprock.*");
+  (void)system("rm -rf -- \"$HOME/.sliprock\" /tmp/sliprock.*");
   SliprockConnection *con =
       sliprock_socket("dummy_valq", sizeof("dummy_val") - 1);
   BOOST_REQUIRE(con != nullptr);
