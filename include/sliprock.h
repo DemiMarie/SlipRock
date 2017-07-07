@@ -189,6 +189,33 @@ SLIPROCK_API SliprockHandle sliprock_UNSAFEgetRawHandle(
 SLIPROCK_API const unsigned char *
 sliprock_UNSAFEgetPasscode(const struct SliprockConnection *connection);
 
+#ifdef _MSC_VER
+#define SLIPROCK_NOINLINE __declspec(noinline)
+#elif defined __GNUC__
+#define SLIPROCK_NOINLINE __attribute__((noinline))
+#else
+#warning dont know how to tell the compiler not to inline this
+#define SLIPROCK_NOINLINE
+#endif
+/**
+ * Compare two byte sequences in constant time.  Return -1 if they are equal, or
+ * -1 otherwise.
+ */
+SLIPROCK_NOINLINE int
+sliprock_secure_compare_memory(const volatile unsigned char *const buf1,
+                               const volatile unsigned char *const buf2,
+                               size_t len);
+
+#if defined __GNUC__ || defined __INTEL_COMPILER
+#define SLIPROCK_WARN_UNUSED_RESULT __attribute__((warn_unused_result))
+#else
+#define SLIPROCK_WARN_UNUSED_RESULT /* nothing */
+#endif
+
+/* Cryptographic random number generation */
+SLIPROCK_WARN_UNUSED_RESULT int
+sliprock_randombytes_sysrandom_buf(void *const buf, const size_t size);
+
 #if 0
 { /* make emacs happy */
 #elif defined __cplusplus

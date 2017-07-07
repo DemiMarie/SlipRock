@@ -40,7 +40,7 @@ randombytes_sysrandom_stir_if_needed(void);
 #ifdef __GLIBC__
 #define _GNU_SOURCE
 #endif
-
+#include "sliprock.h"
 #include "sliprock_internals.h"
 #include "stringbuf.h"
 #include <assert.h>
