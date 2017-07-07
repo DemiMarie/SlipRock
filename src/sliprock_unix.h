@@ -291,6 +291,12 @@ static int make_sockdir(struct SliprockConnection *connection) {
   (void)SLIPROCK_STATIC_ASSERT(sizeof CON_PATH(connection) > MAX_SOCK_LEN);
   (void)SLIPROCK_STATIC_ASSERT(MAX_SOCK_LEN == 69);
 
+  struct stat stat_buf;
+  /* No need to check ‘/’ – if it has bad perms we are sunk. */
+  if (stat("/tmp", &stat_buf) < 0)
+    return -1;
+  if (stat_buf.st_uid != 0 || (stat_buf.st_mode & 01000) == 0)
+    return -1;
 retry:
   CHECK_FUEL(return -1);
   if (sliprock_randombytes_sysrandom_buf(tmp, sizeof tmp) < 0)
