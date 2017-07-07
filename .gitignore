@@ -34,6 +34,7 @@
 
 # CMake products
 build/
+build-windows/
 *.ninja
 CMakeFiles/
 CMakeCache.txt
