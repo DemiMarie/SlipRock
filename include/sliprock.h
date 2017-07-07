@@ -8,7 +8,7 @@ extern "C" {
 #ifdef SLIPROCK_INTERNALS
 #include "../src/sliprock_internals.h"
 #endif
-
+#include <assert.h>
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -29,14 +29,20 @@ extern "C" {
 
 #include <stdint.h>
 
-#define SLIPROCK_EOSERR -1
-#define SLIPROCK_EBADPASS -2
+#define SLIPROCK_EOSERR -1 /* Operating system failure */
+#define SLIPROCK_ESECURITY                                                     \
+  -2                       /* Security problem (ex. bad permissions in /tmp) */
+#define SLIPROCK_EINVAL -3 /* Invalid argument */
 
+#if !defined static_assert && (!defined __cplusplus || __cplusplus < 201103L)
 #define SLIPROCK_STATIC_ASSERT(expr)                                           \
-  (0 * sizeof(struct {                                                         \
-     int static_assertion_failed : 8 * sizeof(int) * ((2 * !!(expr)) - 1);     \
-   }))
-
+  ((void)sizeof(struct {                                                       \
+    int static_assertion_failed : (8 * sizeof(int) * ((2 * !!(expr)) - 1));    \
+  }))
+#else
+#define SLIPROCK_STATIC_ASSERT(expr)                                           \
+  static_assert(expr, "Static assertion failed")
+#endif
 typedef struct SliprockConnection SliprockConnection;
 
 typedef uint64_t SliprockHandle;

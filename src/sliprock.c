@@ -177,7 +177,7 @@ static int sliprock_bind(struct SliprockConnection *con) {
   if (INVALID_HANDLE_VALUE == fd)
     goto fail;
   created_file = 1;
-  (void)SLIPROCK_STATIC_ASSERT(sizeof SLIPROCK_MAGIC - 1 == 16);
+  SLIPROCK_STATIC_ASSERT(sizeof SLIPROCK_MAGIC - 1 == 16);
   if (write_connection(fd, con) < 0)
     goto fail;
   /* Write failed */

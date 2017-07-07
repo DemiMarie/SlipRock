@@ -288,9 +288,8 @@ static int sliprock_fsync(int fd) { return fsync(fd); }
 static int make_sockdir(struct SliprockConnection *connection) {
   /* Temporary buffer used for random numbers */
   uint64_t tmp[2];
-  (void)SLIPROCK_STATIC_ASSERT(sizeof CON_PATH(connection) > MAX_SOCK_LEN);
-  (void)SLIPROCK_STATIC_ASSERT(MAX_SOCK_LEN == 69);
-
+  SLIPROCK_STATIC_ASSERT(sizeof CON_PATH(connection) > MAX_SOCK_LEN);
+  SLIPROCK_STATIC_ASSERT(MAX_SOCK_LEN == 69);
   struct stat stat_buf;
   /* No need to check ‘/’ – if it has bad perms we are sunk. */
   if (stat("/tmp", &stat_buf) < 0)
@@ -353,7 +352,7 @@ SliprockHandle sliprock_connect(const struct SliprockReceiver *receiver) {
     }
   }
   hclose(sock);
-  return (SliprockHandle)SLIPROCK_EBADPASS;
+  return (SliprockHandle)SLIPROCK_ESECURITY;
 }
 #define UNIX_CONST const
 #endif

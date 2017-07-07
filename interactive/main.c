@@ -13,6 +13,7 @@
 #include <getopt.h>
 #include <include/sliprock.h>
 #include <pthread.h>
+#include <src/sliprock_internals.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,6 +23,7 @@
 #include <unistd.h>
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+static int verbose = 0;
 #define helptxt                                                                \
   "Usage: %s [options] [--] [PID] NAME\n"                                      \
   "\n"                                                                         \
@@ -100,23 +102,38 @@ static void copy_fds(int fd) {
 }
 
 static void execute_client(const uint32_t pid, const char *const name) {
+  if (verbose)
+    fprintf(stderr, "Connecting to pid %d with name '%s'\n", pid, name);
   SliprockReceiver *receiver = sliprock_open(name, strlen(name), pid);
   if (NULL == receiver)
     fail("sliprock_open");
+  if (verbose)
+    fputs("Open succeeded", stderr);
   int fd = (int)sliprock_connect(receiver);
   if (fd < 0)
     fail("sliprock_connect");
+  if (verbose)
+    fprintf(stderr, "Connection succeeded: fd = %d,\nsocket path = %s\n", fd,
+            receiver->sock.sun_path);
   sliprock_close_receiver(receiver);
   copy_fds(fd);
 }
 
 static void execute_server(const char *const name) {
+  if (verbose)
+    fprintf(stderr, "Listening on name %s\n", name);
   struct SliprockConnection *con = sliprock_socket(name, strlen(name));
   if (NULL == con)
     fail("sliprock_socket");
+  if (verbose)
+    fprintf(stderr, "Listening on socket %s\n", con->address.sun_path);
   int fd = (int)sliprock_accept(con);
-  if (fd < 0)
+  if (fd < 0) {
     perror("sliprock_accept");
+    exit(1);
+  }
+  if (verbose)
+    fprintf(stderr, "Accepted file descriptor %d\n", fd);
   sliprock_close(con);
   copy_fds(fd);
 }
@@ -130,12 +147,13 @@ int main(int argc, char **argv) {
       {"pid-file", required_argument, NULL, 'p'},
       {0, 0, 0, 0},
   };
-  while ((res = getopt_long(argc, argv, ":vh?p:", long_options,
+  while ((res = getopt_long(argc, argv, ":Vvh?p:", long_options,
                             &option_index)) != -1) {
     switch (res) {
     case ':':
       return 1;
     case 'V':
+      verbose = 1;
       break;
     case 'h':
     case '?':

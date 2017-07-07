@@ -264,8 +264,7 @@ static ssize_t read_receiver(OsHandle fd,
            sizeof receiver->sock];
   char *buf2 = buf;
   DWORD read;
-  (void)SLIPROCK_STATIC_ASSERT(MAGIC_SIZE == sizeof SLIPROCK_MAGIC - 1);
-  (void)magic;
+  SLIPROCK_STATIC_ASSERT(MAGIC_SIZE == sizeof SLIPROCK_MAGIC - 1);
   read = sliprock_read_all(fd, buf, sizeof buf);
   if (read != sizeof buf) {
     SetLastError(ERROR_ACCESS_DENIED);
