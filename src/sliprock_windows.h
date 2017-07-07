@@ -248,18 +248,18 @@ static DWORD sliprock_read_all(HANDLE hnd, void *buf, DWORD size) {
   char *buf_ = buf;
   DWORD read;
   do {
-    if (!ReadFile(hnd, buf, size, &read, 0))
-      return (char *)buf - buf_;
+    if (!ReadFile(hnd, buf_, size, &read, 0))
+      break;
     if (read > size)
       abort();
-    size -= read, buf += read;
+    size -= read, buf_ += read;
   } while (read != size);
-  return (char *)buf - buf_;
+  return buf_ - (char *)buf;
 }
 
-static ssize_t read_receiver(OsHandle fd,
-                             struct SliprockReceiver *receiver,
-                             char magic[static MAGIC_SIZE]) {
+static ssize_t sliprock_read_receiver(OsHandle fd,
+                                      struct SliprockReceiver *receiver,
+                                      char magic[static MAGIC_SIZE]) {
   char buf[sizeof SLIPROCK_MAGIC - 1 + sizeof receiver->passcode +
            sizeof receiver->sock];
   char *buf2 = buf;

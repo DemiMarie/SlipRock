@@ -271,7 +271,7 @@ sliprock_open(const char *const identifier, size_t size, uint32_t pid) {
   if (NULL == receiver)
     goto fail;
   {
-    ssize_t res = read_receiver(fd, receiver, magic);
+    ssize_t res = sliprock_read_receiver(fd, receiver, magic);
     if (res < (ssize_t)MAX_SOCK_LEN) {
       errno = EINVAL;
       goto fail;

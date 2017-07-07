@@ -55,7 +55,7 @@ typedef int SliprockInternalHandle;
 
 static const char *sliprock_get_home_directory(void **freeptr);
 
-static int make_sockdir(struct SliprockConnection *connection);
+static int sliprock_make_sockdir(struct SliprockConnection *connection);
 
 SLIPROCK_API SliprockHandle
 sliprock_connect(const struct SliprockReceiver *receiver);
@@ -78,7 +78,7 @@ sliprock_accept(struct SliprockConnection *connection) {
   OsHandle fd = accept(connection->fd, &_dummy, &_dummy2);
   if (fd < 0)
     return fd;
-  set_cloexec(fd);
+  sliprock_set_cloexec(fd);
 #endif
   const unsigned char *pw_pos = connection->passwd,
                       *const limit = connection->passwd + 32;
@@ -98,7 +98,7 @@ sliprock_accept(struct SliprockConnection *connection) {
 }
 
 int sliprock_bind_os(struct SliprockConnection *connection) {
-  if (make_sockdir(connection) < 0)
+  if (sliprock_make_sockdir(connection) < 0)
     return -1;
 
   /* Establish the socket */
@@ -107,7 +107,7 @@ int sliprock_bind_os(struct SliprockConnection *connection) {
 
 /* Set close-on-exec if it could not have been done atomically. */
 #ifdef SLIPROCK_NO_SOCK_CLOEXEC
-    set_cloexec(connection->fd);
+    sliprock_set_cloexec(connection->fd);
 #endif
 
     /* Bind the socket */
@@ -178,7 +178,7 @@ static int create_directory_and_file(struct StringBuf *buf) {
   assert(NULL != terminus && "create_directory_and_file passed a pathname "
                              "with no path separator!");
   *terminus = '\0';
-  if (mkdir(buf->buf, 0700) && errno != EEXIST)
+  if (makedir(buf->buf) && errno != EEXIST)
     goto fail;
   if ((dir_fd = open(buf->buf, O_DIRECTORY | O_RDONLY | O_CLOEXEC)) < 0)
     goto fail;
@@ -266,8 +266,8 @@ static void delete_socket(struct SliprockConnection *connection) {
 
 /* Read a receiver into a SliprockReceiver struct */
 static ssize_t
-read_receiver(OsHandle fd, struct SliprockReceiver *receiver,
-              char magic[static sizeof SLIPROCK_MAGIC - 1]) {
+sliprock_read_receiver(OsHandle fd, struct SliprockReceiver *receiver,
+                       char magic[static sizeof SLIPROCK_MAGIC - 1]) {
   memset(&receiver->sock, 0, sizeof receiver->sock);
   receiver->sock.sun_family = AF_UNIX;
   struct iovec vecs[] = {
@@ -279,13 +279,15 @@ read_receiver(OsHandle fd, struct SliprockReceiver *receiver,
 }
 
 #ifndef __linux__
-static void set_cloexec(OsHandle fd) { fcntl(fd, F_SETFD, FD_CLOEXEC); }
+static void sliprock_set_cloexec(OsHandle fd) {
+  fcntl(fd, F_SETFD, FD_CLOEXEC);
+}
 #endif
 
 static int sliprock_fsync(int fd) { return fsync(fd); }
 
 /* Make a directory to hold a socket, and fill connection with the path */
-static int make_sockdir(struct SliprockConnection *connection) {
+static int sliprock_make_sockdir(struct SliprockConnection *connection) {
   /* Temporary buffer used for random numbers */
   uint64_t tmp[2];
   SLIPROCK_STATIC_ASSERT(sizeof CON_PATH(connection) > MAX_SOCK_LEN);
@@ -308,7 +310,7 @@ retry:
   StringBuf_add_char(&buf, '.');
   StringBuf_add_hex(&buf, *tmp);
   CHECK_FUEL(return -1);
-  if (makedir(CON_PATH(connection)) < 0) {
+  if (makedir(buf.buf) < 0) {
     if (errno == EEXIST)
       goto retry;
     return -1;
@@ -328,7 +330,7 @@ SliprockHandle sliprock_connect(const struct SliprockReceiver *receiver) {
   if (sock < 0)
     return (SliprockHandle)SLIPROCK_EOSERR;
 #ifdef SLIPROCK_NO_SOCK_CLOEXEC
-  set_cloexec(sock);
+  sliprock_set_cloexec(sock);
 #endif
   if (connect(sock, &receiver->sock, sizeof(struct sockaddr_un)) < 0) {
     hclose(sock);
