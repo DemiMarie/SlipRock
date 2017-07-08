@@ -31,6 +31,13 @@ typedef int HANDLE;
 #include <pthread.h>
 #define INVALID_HANDLE_VALUE (-1)
 #endif
+static uint32_t sliprock_getpid(void) {
+#ifdef _WIN32
+  return GetCurrentProcessId();
+#else
+  return getpid();
+#endif
+}
 struct set_on_close {
   set_on_close(std::mutex &m, bool &b) : boolean(b), mut(m) {}
   ~set_on_close() {
@@ -51,7 +58,7 @@ bool client(char (&buf)[size], SliprockConnection *con, bool &finished,
   HANDLE fd = INVALID_HANDLE_VALUE;
   (void)system("ls -a ~/.sliprock");
   SliprockReceiver *receiver =
-      sliprock_open("dummy_valr", sizeof("dummy_val") - 1, (uint32_t)getpid());
+      sliprock_open("dummy_valr", sizeof("dummy_val") - 1, sliprock_getpid());
   if (receiver == nullptr) {
     perror("sliprock_open");
     goto fail;
