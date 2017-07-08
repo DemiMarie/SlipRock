@@ -160,9 +160,10 @@ static void interrupt_thread(std::mutex &lock, const bool &read_done,
   if (!read_done) {
 #ifndef _WIN32
     pthread_kill(thread.native_handle(), SIGPIPE);
+#elif _MSC_VER
+    CancelSynchronousIo(thread.native_handle());
 #else
     (void)thread;
-    //CancelSynchronousIo(thread.native_handle());
 #endif
   }
 }
@@ -191,8 +192,12 @@ BOOST_AUTO_TEST_CASE(can_create_connection) {
   std::thread thread2(
       [&]() { write_succeeded = client(buf, con, write_done, lock); });
   auto interrupter = std::thread{[&]() {
+#ifndef _WIN32
     struct timespec q = {1, 0};
     nanosleep(&q, nullptr);
+#else
+    Sleep(1000);
+#endif
     interrupt_thread(lock2, read_done, thread);
     interrupt_thread(lock, write_done, thread2);
   }};
