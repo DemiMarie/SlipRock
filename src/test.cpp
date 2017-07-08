@@ -1,8 +1,14 @@
-#include <stdlib.h>
 
 #ifdef _WIN32
 #define _UNICODE 1
 #define UNICODE 1
+#endif
+#define BOOST_TEST_MODULE SlipRock module
+#ifdef _MSC_VER
+#include <boost/test/included/unit_test.hpp>
+#else
+#define BOOST_TEST_DYN_LINK
+#include <boost/test/unit_test.hpp>
 #endif
 
 #include "../include/sliprock.h"
@@ -11,11 +17,8 @@
 #include <csignal>
 #include <exception>
 #include <mutex>
-#define BOOST_TEST_MODULE SlipRock module
-#define BOOST_TEST_DYN_LINK
-#include <boost/test/unit_test.hpp>
-//#include <boost/thread.hpp>
 #include <stdexcept>
+#include <stdlib.h>
 #include <thread>
 
 #ifdef _WIN32
@@ -35,7 +38,7 @@ static uint32_t sliprock_getpid(void) {
 #ifdef _WIN32
   return GetCurrentProcessId();
 #else
-  return getpid();
+  return (uint32_t)getpid();
 #endif
 }
 struct set_on_close {
@@ -57,8 +60,8 @@ bool client(char (&buf)[size], SliprockConnection *con, bool &finished,
   bool read_succeeded = false;
   HANDLE fd = INVALID_HANDLE_VALUE;
   (void)system("ls -a ~/.sliprock");
-  SliprockReceiver *receiver =
-      sliprock_open("dummy_valr", sizeof("dummy_val") - 1, sliprock_getpid());
+  SliprockReceiver *receiver = sliprock_open(
+      "dummy_valr", sizeof("dummy_val") - 1, sliprock_getpid());
   if (receiver == nullptr) {
     perror("sliprock_open");
     goto fail;

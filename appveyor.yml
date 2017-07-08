@@ -27,7 +27,9 @@ build:
 before_test:
   - 'set "PATH=C:\Libraries\boost_1_63_0;%PATH%"'
   - ps: 'Get-ChildItem C:\Libraries\boost_1_63_0'
-  - 'set "PATH=%BOOST_ROOT%\lib;%PATH%" & "src\%CONFIGURATION%\mytest.exe"'
+  - 'dir src'
+  - 'dir "src\%CONFIGURATION%"'
+  - '"src\%CONFIGURATION%\mytest.exe"'
 
 notifications:
   - provider: Email
