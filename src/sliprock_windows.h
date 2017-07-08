@@ -63,7 +63,7 @@ static OsHandle openfile(MyChar *path, int mode) {
 #endif
   return h;
 }
-#ifdef _MSC_VER
+#if 0
 #include <processthreadsapi.h>
 #else
 // Taken from Wine
