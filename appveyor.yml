@@ -20,6 +20,7 @@ before_build:
     -DCMAKE_INSTALL_PREFIX=C:\Projects\libs
     "-DCMAKE_BUILD_TYPE=%CONFIGURATION%" 
     "-DBOOST_ROOT=C:\Libraries\boost_1_63_0"
+    -DBoost_USE_STATIC_LIBS=1
 
 build:
   project: INSTALL.vcxproj
