@@ -24,6 +24,9 @@ before_build:
 build:
   project: INSTALL.vcxproj
 
+before_test:
+  - '"src\%CONFIGURATION%\mytest.exe"'
+
 notifications:
   - provider: Email
     to:
