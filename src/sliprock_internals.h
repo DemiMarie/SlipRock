@@ -6,9 +6,11 @@
 #include <sys/types.h>
 #elif defined _MSC_VER
 #ifdef _WIN64
-typedef __int64 ssize_t;
+/* typedef __int64 ssize_t; */
+#define ssize_t __int64
 #else
-typedef __int32 ssize_t;
+/* typedef __int32 ssize_t; */
+#define ssize_t __int32
 #endif
 #endif
 #define MAGIC_SIZE (sizeof SLIPROCK_MAGIC - 1)
@@ -27,7 +29,7 @@ typedef HANDLE OsHandle;
 
 #include <sys/types.h>
 #include <sys/un.h>
-    typedef char MyChar;
+typedef char MyChar;
 typedef int OsHandle;
 #endif
 #include "stringbuf.h"
