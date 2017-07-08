@@ -8,11 +8,14 @@ rm -rf build
 mkdir build
 cd build
 cc=cc
+run_cmake () {
+   cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER="$cc" -DCMAKE_INSTALL_PREFIX="$HOME/.local" "$@"
+}
 if command -v ninja; then
-    cmake .. -GNinja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER="$cc"
+    run_cmake -GNinja
     ninja
 else
-    cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER="$cc"
+    run_cmake
     make
 fi
 src/mytest
