@@ -6,9 +6,9 @@
 #include <sys/types.h>
 #elif defined _MSC_VER
 #ifdef _WIN64
-typedef __int64 ssize_t
+typedef __int64 ssize_t;
 #else
-typedef __int32 ssize_t
+typedef __int32 ssize_t;
 #endif
 #endif
 #define MAGIC_SIZE (sizeof SLIPROCK_MAGIC - 1)

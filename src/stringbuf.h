@@ -25,7 +25,6 @@ typedef char TCHAR;
 extern "C" {
 #endif
 
-
 struct StringBuf {
   TCHAR *buf;                  /**< The actual buffer */
   const uint16_t buf_capacity; /**< in *TCHARs* */

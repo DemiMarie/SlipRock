@@ -19,7 +19,7 @@
 /* Taken from libsodium */
 
 #ifdef _MSC_VER
-#define __attribute__(x) syntax error!
+#define __attribute__(x) syntax error !
 #endif
 /* From utils.h */
 #ifndef SODIUM_C99
