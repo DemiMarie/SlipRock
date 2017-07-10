@@ -16,8 +16,8 @@
 #define MAGIC_SIZE (sizeof SLIPROCK_MAGIC - 1)
 #ifdef SLIPROCK_TRACE
 #define MADE_IT                                                           \
-  ((void)(printf("File %s, line %d reached\n", __FILE__, __LINE__),       \
-          fflush(stdout)))
+  ((void)(fprintf(stderr, "File %s, line %d reached\n", __FILE__, __LINE__),       \
+          fflush(stderr)))
 #else
 #define MADE_IT ((void)0)
 #endif

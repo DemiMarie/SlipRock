@@ -285,7 +285,7 @@ static ssize_t sliprock_read_receiver(OsHandle fd,
   read = sliprock_read_all(fd, buf, sizeof buf);
   if (read != sizeof buf) {
 #ifdef SLIPROCK_TRACE
-    printf("Read %d bytes - expected %d\n", read, sizeof buf);
+    fprintf(stderr, "Read %d bytes - expected %d\n", read, sizeof buf);
 #endif
     return -1;
   }
@@ -316,8 +316,9 @@ SLIPROCK_API int sliprock_connect(const struct SliprockReceiver *receiver,
   if ((read = sliprock_read_all(hPipe, pass, sizeof pass)) !=
       sizeof pass) {
 #ifdef SLIPROCK_TRACE
-    printf("Protocol malfunction! Read %d bytes, expected %d\n", read,
+    fprintf(stderr, "Protocol malfunction! Read %d bytes, expected %d\n", read,
            sizeof pass);
+    fflush(stderr);
 #endif
     err = SLIPROCK_EPROTO;
     goto fail;
