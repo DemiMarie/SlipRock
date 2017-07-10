@@ -19,6 +19,9 @@ if (WINDOWS)
    set(both_flag_list "${both_flag_list};-static-libgcc;-static-libstdc++")
 endif()
 
+if (SLIPROCK_TRACE)
+   add_definitions(-DSLIRPOCK_TRACE)
+endif()
 
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0")
 set(cxx_flag_list Wno-old-style-cast "Wno-c\\\\\\\\+\\\\\\\\+98-compat" std=c++11
