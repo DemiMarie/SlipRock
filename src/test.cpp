@@ -58,21 +58,21 @@ bool client(char (&buf)[size], SliprockConnection *con, bool &finished,
   set_on_close closer(mutex, finished);
   char buf2[size + 1] = {0};
   bool read_succeeded = false;
-  HANDLE fd = INVALID_HANDLE_VALUE;
-  (void)system("ls -a ~/.sliprock");
-  SliprockReceiver *receiver = sliprock_open(
-      "dummy_valr", sizeof("dummy_val") - 1, sliprock_getpid());
-  if (receiver == nullptr) {
-    perror("sliprock_open");
-    goto fail;
-  }
+  SliprockHandle fd_ = (SliprockHandle)INVALID_HANDLE_VALUE;
+#ifndef _WIN32
+  BOOST_TEST(system("ls -a ~/.sliprock") == 0);
+#endif
+  SliprockReceiver *receiver;
+  int x = sliprock_open("dummy_valr", sizeof("dummy_val") - 1,
+                              sliprock_getpid(), &receiver);
+  BOOST_TEST(x == 0);
+  BOOST_REQUIRE(x == 0);
   MADE_IT;
-  fd = (HANDLE)sliprock_connect(receiver);
-  if (fd == INVALID_HANDLE_VALUE) {
-    perror("sliprock_connect");
-    goto fail;
-  }
+  x = sliprock_connect(receiver, &fd_);
+  BOOST_TEST(x == 0);
+  BOOST_REQUIRE(x == 0);
   MADE_IT;
+  HANDLE fd = (HANDLE)fd_;
 #ifdef _WIN32
   DWORD read;
   BOOST_TEST(0 != ReadFile(fd, buf2, sizeof buf, &read, nullptr));
@@ -92,11 +92,9 @@ bool client(char (&buf)[size], SliprockConnection *con, bool &finished,
   puts(buf);
   puts(buf2);
 #ifndef _WIN32
-  BOOST_TEST(fd > -1);
+  BOOST_TEST((int)fd > -1);
 #endif
   read_succeeded = true;
-fail:
-  BOOST_REQUIRE(nullptr != receiver);
   BOOST_TEST(0 == memcmp(reinterpret_cast<void *>(&receiver->sock),
                          reinterpret_cast<void *>(&con->address),
                          sizeof con->address));
@@ -116,7 +114,13 @@ bool server(char (&buf)[n], SliprockConnection *con, bool &finished,
             std::mutex &mutex) {
   set_on_close closer(mutex, finished);
   MADE_IT;
-  auto handle = (HANDLE)sliprock_accept(con);
+  SliprockHandle handle_;
+  int err = sliprock_accept(con, &handle_);
+  if (err != 0) {
+    fprintf(stderr, "error code %d\n", err);
+    return false;
+  }
+  auto handle = (HANDLE)handle_;
   MADE_IT;
   if (handle == INVALID_HANDLE_VALUE)
     return false;
@@ -185,11 +189,12 @@ BOOST_AUTO_TEST_CASE(can_create_connection) {
   sigemptyset(&sigact.sa_mask);
   sigaddset(&sigact.sa_mask, SIGPIPE);
   sigaction(SIGPIPE, &sigact, nullptr);
+  BOOST_TEST(system("rm -rf -- \"$HOME/.sliprock\" /tmp/sliprock.*") == 0);
 #endif
-  (void)system("rm -rf -- \"$HOME/.sliprock\" /tmp/sliprock.*");
-  SliprockConnection *con =
-      sliprock_socket("dummy_valq", sizeof("dummy_val") - 1);
-  BOOST_REQUIRE(con != nullptr);
+  SliprockConnection *con = nullptr;
+  int x = sliprock_socket("dummy_val", sizeof("dummy_val") - 1, &con);
+  BOOST_TEST(x == 0);
+  BOOST_REQUIRE(x == 0);
 
   std::mutex lock, lock2;
   bool read_done = false, write_done = false;

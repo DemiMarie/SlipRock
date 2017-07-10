@@ -77,19 +77,21 @@ INIT_ONCE initialized = INIT_ONCE_STATIC_INIT;
 
 int init_func(void) { return 0; }
 
-static wchar_t *sliprock_get_home_directory(void **const freeptr) {
+static int sliprock_get_home_directory(void **const freeptr, const wchar_t **homedir) {
   HANDLE const hCurProc = GetCurrentProcessToken();
   wchar_t *buf = NULL;
   DWORD len = 0;
-  *freeptr = NULL;
-  GetUserProfileDirectoryW(hCurProc, NULL, &len);
+  *homedir = *freeptr = NULL;
+  if (!GetUserProfileDirectoryW(hCurProc, NULL, &len))
+    return SLIPROCK_EOSERR;
   if ((buf = (wchar_t *)malloc(sizeof(wchar_t) * len)) == NULL)
-    return NULL;
+    return SLIPROCK_ENOMEM;
   if (!GetUserProfileDirectoryW(hCurProc, buf, &len)) {
     free(buf);
-    return NULL;
+    return SLIPROCK_EOSERR;
   }
-  return *freeptr = buf;
+  *homedir = *freeptr = buf;
+  return 0;
 }
 
 static OsHandle create_directory_and_file(struct StringBuf *path) {
@@ -208,18 +210,23 @@ retry:
   if (INVALID_HANDLE_VALUE == *pipe) {
     if (GetLastError() == ERROR_ACCESS_DENIED)
       goto retry;
+    else
+      return SLIPROCK_EOSERR;
   }
   return 0;
 }
 
-SLIPROCK_API SliprockHandle
-sliprock_accept(struct SliprockConnection *connection) {
+SLIPROCK_API int
+sliprock_accept(struct SliprockConnection *connection, SliprockHandle *handle) {
   HANDLE hPipe = sliprock_get_handle_for_connection(connection);
+  int err;
+  *handle = (SliprockHandle)INVALID_HANDLE_VALUE;
   MADE_IT;
   if (hPipe == INVALID_HANDLE_VALUE)
-    return (SliprockHandle)hPipe;
+    return SLIPROCK_EOSERR;
   MADE_IT;
   if (ConnectNamedPipe(hPipe, NULL) == 0) {
+    err = SLIPROCK_EOSERR;
     goto fail;
   }
   DWORD written_this_time, written = 0;
@@ -228,21 +235,27 @@ sliprock_accept(struct SliprockConnection *connection) {
     MADE_IT;
     if (WriteFile(hPipe, connection->passwd + written,
                   sizeof connection->passwd - written, &written_this_time,
-                  NULL) == 0)
+                  NULL) == 0) {
+      err = SLIPROCK_EPROTO;
       goto fail;
+    }
     MADE_IT;
     assert(written_this_time <= sizeof connection->passwd - written);
     written += written_this_time;
-    if (written == sizeof connection->passwd)
-      return (SliprockHandle)hPipe;
+    if (written == sizeof connection->passwd) {
+      *handle = (SliprockHandle)hPipe;
+      return 0;
+    }
     MADE_IT;
-    if (written == 0)
+    if (written == 0) {
+      err = SLIPROCK_EPROTO;
       goto fail;
+    }
   }
 fail:
   CloseHandle(hPipe);
   MADE_IT;
-  return (SliprockHandle)INVALID_HANDLE_VALUE;
+  return err;
 }
 
 static DWORD sliprock_read_all(HANDLE hnd, void *buf, DWORD size) {
@@ -283,27 +296,30 @@ static int sliprock_bind_os(struct SliprockConnection *connection) {
   return sliprock_bind_os_raw(connection, &connection->fd);
 }
 
-SliprockHandle sliprock_connect(const struct SliprockReceiver *receiver) {
+SLIPROCK_API int sliprock_connect(const struct SliprockReceiver *receiver, SliprockHandle *handle) {
   HANDLE hPipe = CreateFileW(
       receiver->sock, GENERIC_READ | GENERIC_WRITE,
       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
       OPEN_EXISTING, SECURITY_SQOS_PRESENT | SECURITY_ANONYMOUS, NULL);
+  int err;
+  *handle = (SliprockHandle)INVALID_HANDLE_VALUE;
   if (INVALID_HANDLE_VALUE == hPipe)
-    return (SliprockHandle)hPipe;
+    return SLIPROCK_EOSERR;
   unsigned char pass[sizeof receiver->passcode];
   if (sliprock_read_all(hPipe, pass, sizeof pass) != sizeof pass) {
-    SetLastError(ERROR_ACCESS_DENIED);
+    err = SLIPROCK_EPROTO;
     goto fail;
   }
   if (sliprock_secure_compare_memory(pass, receiver->passcode,
                                      sizeof pass)) {
-    SetLastError(ERROR_ACCESS_DENIED);
+    err = SLIPROCK_ENOAUTH;
     goto fail;
   }
-  return (SliprockHandle)hPipe;
+  *handle = (SliprockHandle)hPipe;
+  return 0;
 fail:
   CloseHandle(hPipe);
-  return (SliprockHandle)INVALID_HANDLE_VALUE;
+  return err;
 }
 #endif
 #endif

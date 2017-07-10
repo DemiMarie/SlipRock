@@ -4,7 +4,7 @@
         "exception": "cpp",
         "*.ipp": "cpp",
         "thread": "cpp"
-    }
+    },
     // The full path of the clang-format executable.
     "C_Cpp.clang_format_path": "/usr/bin/clang-format",
     "clang.cflags": [

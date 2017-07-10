@@ -51,6 +51,15 @@ __attribute__((noreturn)) static void usage(int argc, char **argv) {
   stdout_error();
 }
 
+#define check_sliprock(sliprock_retval)                                        \
+  do {                                                                         \
+    int q = (sliprock_retval);                                                 \
+    if (q) {                                                                   \
+      fprintf(stderr, "Sliprock call failed: line %d, error %d", __LINE__, q); \
+      exit(1);                                                                 \
+    }                                                                          \
+  } while (0)
+
 typedef struct {
   int src;
   int dst;
@@ -104,38 +113,36 @@ static void copy_fds(int fd) {
 static void execute_client(const uint32_t pid, const char *const name) {
   if (verbose)
     fprintf(stderr, "Connecting to pid %d with name '%s'\n", pid, name);
-  SliprockReceiver *receiver = sliprock_open(name, strlen(name), pid);
-  if (NULL == receiver)
-    fail("sliprock_open");
+  SliprockReceiver *receiver;
+  check_sliprock(sliprock_open(name, strlen(name), pid, &receiver));
   if (verbose)
     fputs("Open succeeded", stderr);
-  int fd = (int)sliprock_connect(receiver);
-  if (fd < 0)
+  SliprockHandle fd;
+  check_sliprock(sliprock_connect(receiver, &fd));
+  if ((int)fd < 0)
     fail("sliprock_connect");
   if (verbose)
-    fprintf(stderr, "Connection succeeded: fd = %d,\nsocket path = %s\n", fd,
-            receiver->sock.sun_path);
+    fprintf(stderr, "Connection succeeded: fd = %d,\nsocket path = %s\n",
+            (int)fd, receiver->sock.sun_path);
   sliprock_close_receiver(receiver);
-  copy_fds(fd);
+  copy_fds((int)fd);
 }
 
 static void execute_server(const char *const name) {
+  SliprockHandle fd;
   if (verbose)
     fprintf(stderr, "Listening on name %s\n", name);
-  struct SliprockConnection *con = sliprock_socket(name, strlen(name));
+  struct SliprockConnection *con;
+  check_sliprock(sliprock_socket(name, strlen(name), &con));
   if (NULL == con)
     fail("sliprock_socket");
   if (verbose)
     fprintf(stderr, "Listening on socket %s\n", con->address.sun_path);
-  int fd = (int)sliprock_accept(con);
-  if (fd < 0) {
-    perror("sliprock_accept");
-    exit(1);
-  }
+  check_sliprock(sliprock_accept(con, &fd));
   if (verbose)
-    fprintf(stderr, "Accepted file descriptor %d\n", fd);
+    fprintf(stderr, "Accepted file descriptor %d\n", (int)fd);
   sliprock_close(con);
-  copy_fds(fd);
+  copy_fds((int)fd);
 }
 
 int main(int argc, char **argv) {

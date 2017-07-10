@@ -31,7 +31,7 @@
 #define hclose close
 
 #define sliprock_unlink unlink
-#define INVALID_HANDLE_VALUE -1
+#define INVALID_HANDLE_VALUE ((SliprockHandle)-1)
 
 #define SLIPROCK_MAGIC "\0SlipRock\n\rUNIX\x1a"
 #ifndef SOCK_CLOEXEC
@@ -53,46 +53,47 @@
 
 typedef int SliprockInternalHandle;
 
-static const char *sliprock_get_home_directory(void **freeptr);
+static int sliprock_get_home_directory(void **freeptr,
+                                       const char **homedir);
 
 static int sliprock_make_sockdir(struct SliprockConnection *connection);
 
-SLIPROCK_API SliprockHandle
-sliprock_connect(const struct SliprockReceiver *receiver);
-SLIPROCK_API SliprockHandle
-sliprock_accept(struct SliprockConnection *connection);
 #define CON_PATH(con) ((con)->address.sun_path)
 
 int sliprock_bind_os(struct SliprockConnection *connection);
 
-SLIPROCK_API SliprockHandle
-sliprock_accept(struct SliprockConnection *connection) {
+SLIPROCK_API int sliprock_accept(struct SliprockConnection *connection,
+                                 SliprockHandle *handle) {
   struct sockaddr_un _dummy;
   socklen_t _dummy2 = sizeof(struct sockaddr_un);
-  assert(INVALID_HANDLE_VALUE != connection->fd);
+  OsHandle fd;
+  assert(-1 != connection->fd);
 #ifdef __linux__
-  OsHandle fd = accept4(connection->fd, &_dummy, &_dummy2, SOCK_CLOEXEC);
+  fd = accept4(connection->fd, &_dummy, &_dummy2, SOCK_CLOEXEC);
+  *handle = (SliprockHandle)fd;
   if (fd < 0)
-    return (SliprockHandle)fd;
+    return SLIPROCK_EOSERR;
 #else
-  OsHandle fd = accept(connection->fd, &_dummy, &_dummy2);
+  fd = *handle = accept(connection->fd, &_dummy, &_dummy2);
   if (fd < 0)
-    return fd;
+    return SLIPROCK_EOSERR;
   sliprock_set_cloexec(fd);
 #endif
   const unsigned char *pw_pos = connection->passwd,
                       *const limit = connection->passwd + 32;
   while (1) {
     const ssize_t delta = limit - pw_pos;
+    ssize_t num_written;
     assert(delta >= 0);
-    const ssize_t num_written = write(fd, pw_pos, (size_t)delta);
+    num_written = write(fd, pw_pos, (size_t)delta);
     if (num_written <= 0) {
       hclose(fd);
-      return (SliprockHandle)INVALID_HANDLE_VALUE;
+      *handle = INVALID_HANDLE_VALUE;
+      return SLIPROCK_EPROTO;
     }
     assert(num_written <= delta);
     if (num_written >= delta)
-      return (SliprockHandle)fd;
+      return 0;
     pw_pos += num_written;
   }
 }
@@ -129,12 +130,15 @@ int sliprock_bind_os(struct SliprockConnection *connection) {
  * the returned pointer.
  *
  * On error, returns NULL and set errno. */
-static const char *sliprock_get_home_directory(void **freeptr) {
+static int sliprock_get_home_directory(void **freeptr,
+                                       const char **homedir) {
   int e;
   char *buf = NULL;
   size_t size = 28;
   struct passwd pw, *pw_ptr;
   memset(&pw, 0, sizeof(pw));
+  assert(homedir != NULL);
+  *homedir = NULL;
   *freeptr = NULL;
   do {
     char *old_buf = buf;
@@ -142,7 +146,7 @@ static const char *sliprock_get_home_directory(void **freeptr) {
     if ((buf = realloc(buf, (size <<= 1))) == NULL) {
       // Yes, we need to handle running out of memory.
       free(old_buf);
-      return NULL;
+      return SLIPROCK_ENOMEM;
     }
     pw_ptr = &pw;
     memset(pw_ptr, 0, sizeof(struct passwd));
@@ -154,10 +158,11 @@ static const char *sliprock_get_home_directory(void **freeptr) {
     free(buf);
     assert(e);
     errno = e;
-    return NULL;
+    return SLIPROCK_EOSERR;
   }
   *freeptr = buf;
-  return pw_ptr->pw_dir;
+  *homedir = pw_ptr->pw_dir;
+  return 0;
 }
 
 /* Create a directory with suitable permissions */
@@ -324,17 +329,19 @@ retry:
 #define MyStrlen strlen
 
 /* See documentation in sliprock.h */
-SliprockHandle sliprock_connect(const struct SliprockReceiver *receiver) {
+int sliprock_connect(const struct SliprockReceiver *receiver,
+                     SliprockHandle *handle) {
   int sock = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
   unsigned char pw_received[32];
+  *handle = INVALID_HANDLE_VALUE;
   if (sock < 0)
-    return (SliprockHandle)SLIPROCK_EOSERR;
+    return SLIPROCK_EOSERR;
 #ifdef SLIPROCK_NO_SOCK_CLOEXEC
   sliprock_set_cloexec(sock);
 #endif
   if (connect(sock, &receiver->sock, sizeof(struct sockaddr_un)) < 0) {
     hclose(sock);
-    return (SliprockHandle)SLIPROCK_EOSERR;
+    return SLIPROCK_EOSERR;
   }
   size_t remaining = sizeof pw_received;
   unsigned char *read_ptr = pw_received;
@@ -344,17 +351,20 @@ SliprockHandle sliprock_connect(const struct SliprockReceiver *receiver) {
       break;
     if (remaining >= (size_t)num_read) {
       if (0 == sliprock_secure_compare_memory(pw_received,
-                                              receiver->passcode, 32))
-        return (SliprockHandle)sock;
-      else
-        break;
+                                              receiver->passcode, 32)) {
+        *handle = (SliprockHandle)sock;
+        return 0;
+      } else {
+        hclose(sock);
+        return SLIPROCK_ENOAUTH;
+      }
     } else {
       remaining -= (size_t)num_read;
       read_ptr += num_read;
     }
   }
   hclose(sock);
-  return (SliprockHandle)SLIPROCK_ESECURITY;
+  return SLIPROCK_EPROTO;
 }
 #define UNIX_CONST const
 #endif

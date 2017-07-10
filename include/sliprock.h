@@ -31,10 +31,17 @@ extern "C" {
 
 #include <stdint.h>
 
-#define SLIPROCK_EOSERR -1 /* Operating system failure */
-#define SLIPROCK_ESECURITY                                                     \
-  -2                       /* Security problem (ex. bad permissions in /tmp) */
-#define SLIPROCK_EINVAL -3 /* Invalid argument */
+#define SLIPROCK_EOSERR -1    /* Operating system failure */
+#define SLIPROCK_ENOMEM -2    /* Out of memory */
+#define SLIPROCK_EINVAL -3    /* Invalid argument */
+#define SLIPROCK_ETMPPERMS -4 /* Insecure permissions in /tmp */
+#define SLIPROCK_ENOAUTH -5   /* Authentication failed */
+#define SLIPROCK_ENOCONN -6   /* No such connection */
+#define SLIPROCK_ENORND -7    /* Failure to obtain random numbers from the OS */
+#define SLIPROCK_ERANGE -8    /* Argument out of range (ex. too long) */
+#define SLIPROCK_EILSEQ -9    /* Illegal byte sequence */
+#define SLIPROCK_EINTERNALERROR -10 /* Internal error (this is a bug) */
+#define SLIPROCK_EPROTO -11         /* Protocol error */
 
 #if !defined static_assert && (!defined __cplusplus || __cplusplus < 201103L)
 #define SLIPROCK_STATIC_ASSERT(expr)                                           \
@@ -71,28 +78,32 @@ typedef uint64_t SliprockHandle;
  *
  * \param length The length of the name.
  *
- * \return an opaque pointer (of type SliprockConnection) that encapsulates the
- * state of the connection, or sliprock_Invalid_Handle on error.  Must be
- * explicitly released by the caller with sliprock_release when no longer
- * needed.
+ * \param connection Set to an opaque pointer (of type SliprockConnection) that
+ * encapsulates the state of the connection, or sliprock_Invalid_Handle on
+ * error.  Must be explicitly released by the caller with sliprock_release when
+ * no longer needed.  On failure, it is set to NULL.
+ * \return 0 on success.  On error, a (negative) SlipRock error is returned.
  */
-SLIPROCK_API SliprockConnection *sliprock_socket(const char *name,
-                                                 size_t length);
+SLIPROCK_API int sliprock_socket(const char *name, size_t length,
+                                 SliprockConnection **connection);
 
 /**
  * Accepts an OS connection from the server side of a SlipRock
  * connection.
  *
- * The return value is a \p HANDLE (Windows) or a file descriptor (*nix).  It -1
- * (*nix) or \p INVALID_HANDLE_VALUE (Windows) on error.  On error, errno (*nix)
- * or the return value of GetLastError() (Windows) is set to indicate the error.
+ * On success, *handle is set to a \p HANDLE (Windows) or a file descriptor
+ * (*nix).  It -1 (*nix) or \p INVALID_HANDLE_VALUE (Windows) on error.
+ *
+ * Returns 0 on success.  On error, a negative error code is returned.
  *
  * This is a blocking call.  Use sliprock_accept_async() if you want
  * anon-blocking version.
  *
  * \param conn The SlipRock connection to accept the connection from.
+
  */
-SLIPROCK_API SliprockHandle sliprock_accept(SliprockConnection *conn);
+SLIPROCK_API int sliprock_accept(SliprockConnection *conn,
+                                 SliprockHandle *handle);
 
 /**
  * Closes a SlipRock connection, freeing underlying resources.
@@ -132,9 +143,14 @@ typedef struct SliprockReceiver SliprockReceiver;
  * \param size The length of \p identifier.
  *
  * \param pid The process ID of the process to be connected to.
+ *
+ * \param receiver A pointer through which a SliprockReceiver* will be written.
+ *
+ * \returns 0 on success.  On error, a (negative) SlipRock error code is
+ * returned, and *receiver is set to NULL.
  */
-SLIPROCK_API SliprockReceiver *sliprock_open(const char *const identifier,
-                                             size_t size, uint32_t pid);
+SLIPROCK_API int sliprock_open(const char *const identifier, size_t size,
+                               uint32_t pid, SliprockReceiver **receiver);
 
 /**
  * Frees the given SliprockReceiver, releasing underlying resources.
@@ -148,16 +164,18 @@ SLIPROCK_API void sliprock_close_receiver(struct SliprockReceiver *receiver);
 /**
  * Connects the given SliprockReceiver to its peer.
  *
- * This connects the given SliprockReceiver to its peer.  The return value is an
- * OS handle to the connection.
+ * This connects the given SliprockReceiver to its peer.  On return, *handle is
+ * an OS handle to the connection, or -1 (suitably cast) on error.
+ *
+ * \return 0 on success, a (negative) SlipRock error code on failure.
  *
  * It is safe to call this function may be from multiple threads concurrently,
  * even with the same \p receiver.
  *
  * This is a blocking call and blocks until the peer has created a connection.
  */
-SLIPROCK_API SliprockHandle
-sliprock_connect(const struct SliprockReceiver *receiver);
+SLIPROCK_API int sliprock_connect(const struct SliprockReceiver *receiver,
+                                  SliprockHandle *handle);
 
 /**
  * Unsafely gets the raw OS handle to a server-side connection.

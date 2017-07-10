@@ -49,24 +49,25 @@ SLIPROCK_API void sliprock_close(struct SliprockConnection *connection) {
     sliprock_unlink(connection->path.buf);
     free((void *)connection->path.buf);
   }
-  if (connection->fd != INVALID_HANDLE_VALUE)
+  if (connection->fd != (OsHandle)INVALID_HANDLE_VALUE)
     hclose(connection->fd);
   delete_socket(connection);
   free(connection);
 }
 
-static struct SliprockConnection *sliprock_new(const char *const name,
-                                               const size_t namelen) {
+static int sliprock_new(const char *const name, const size_t namelen,
+                        struct SliprockConnection **connection_) {
+  struct SliprockConnection *connection;
+  *connection_ = NULL;
   if (namelen > 200) {
-    errno = ERANGE;
-    return NULL;
+    return SLIPROCK_ERANGE;
   }
 
-  struct SliprockConnection *connection =
+  connection = *connection_ =
       calloc(1, namelen + sizeof(struct SliprockConnection));
 
   if (NULL == connection)
-    return NULL;
+    return SLIPROCK_ENOMEM;
 #ifndef _WIN32
   connection->address.sun_family = AF_UNIX;
 #endif
@@ -74,7 +75,7 @@ static struct SliprockConnection *sliprock_new(const char *const name,
   memcpy(&connection->name, name, namelen);
   connection->namelen = namelen;
 
-  return connection;
+  return 0;
 }
 
 static int sliprock_check_charset(const char *name, size_t namelen) {
@@ -83,8 +84,7 @@ static int sliprock_check_charset(const char *name, size_t namelen) {
   for (i = 0; i < namelen; ++i) {
     if (!isalnum(name[i]) && name[i] != '-' && name[i] != '.' &&
         name[i] != '_') {
-      errno = EILSEQ;
-      return -1;
+      return SLIPROCK_EILSEQ;
     }
   }
   return 0;
@@ -94,18 +94,22 @@ static int sliprock_check_charset(const char *name, size_t namelen) {
  * Obtains the filename corresponding to the local file to be created.
  *
  * \param srcname points to the identifier of the newly created connection.
- * It need not be NUL-terminated, but must point to at least \p len worth
- * of
- * valid data.
- *
+ * It need not be NUL-terminated, but must point to at least \p size worth
+ * of valid data.
+ * \param size The number of bytes pointed to by srcname.
  * \param pid is the process ID of the process that created the connection.
+ * \param innerlen ????
+ * \param [in] extraspace The amount of extra space to include.
+ * \param [out] fname_buf A StringBuf to store the result in.extraspace
+ * \return 0 on success, a (negative) SlipRock error code on failure.
  */
-static int get_fname(const char *const srcname, const size_t size,
-                     uint32_t pid, int *innerlen, uint16_t extraspace,
-                     struct StringBuf *fname_buf) {
+static int sliprock_get_fname(const char *const srcname, const size_t size,
+                              uint32_t pid, int *innerlen,
+                              uint16_t extraspace,
+                              struct StringBuf *fname_buf) {
   void *freeptr = NULL;
+  int errcode = SLIPROCK_EINTERNALERROR;
   size_t innerlen_, newsize, homelen;
-  int status = -1;
   const MyChar *homedir;
   UNIX_CONST MyChar *decoded_srcname;
   assert(sliprock_check_charset(srcname, size) == 0 &&
@@ -118,29 +122,34 @@ static int get_fname(const char *const srcname, const size_t size,
   if (NULL == decoded_srcname)
     goto fail;
 
-  homedir = sliprock_get_home_directory(&freeptr);
-  if (NULL == homedir)
+  errcode = sliprock_get_home_directory(&freeptr, &homedir);
+  assert((NULL != homedir) ^ (errcode != 0));
+  if (NULL == homedir || errcode) {
     goto fail;
-
+  }
   homelen = MyStrlen(homedir);
   if (homelen > UINT16_MAX) {
-    errno = ERANGE;
+    errcode = SLIPROCK_ERANGE;
     goto fail;
   }
 
   newsize = size + sizeof "/.sliprock/..sock" + 20 /* pid */ + homelen +
             extraspace;
   if ((uint16_t)newsize > (uint16_t)UINT16_MAX - extraspace) {
-    errno = ERANGE;
+    errcode = SLIPROCK_ERANGE;
     goto fail;
   }
 
-  if (StringBuf_alloc(newsize + extraspace, fname_buf) < 0)
+  if (StringBuf_alloc(newsize + extraspace, fname_buf) < 0) {
+    errcode = SLIPROCK_ENOMEM;
     goto fail;
+  }
 
   innerlen_ = homelen + sizeof "/.sliprock" - 1;
   assert(innerlen_ < INT_MAX / 2 &&
          "inner length is greater than outer length!");
+
+  /* Yes, we could use snprintf here */
   StringBuf_add_string(fname_buf, homedir, homelen);
   StringBuf_add_literal(fname_buf, "/.sliprock/");
   StringBuf_add_decimal(fname_buf, pid);
@@ -150,7 +159,7 @@ static int get_fname(const char *const srcname, const size_t size,
   errno = 0;
   if (innerlen)
     *innerlen = (int)innerlen_;
-  status = 0;
+  errcode = 0;
   goto success;
 fail:
   if (innerlen)
@@ -160,7 +169,7 @@ fail:
 success:
   free(freeptr);
   FreeIdent(decoded_srcname);
-  return status;
+  return errcode;
 }
 
 static int sliprock_bind(struct SliprockConnection *con) {
@@ -170,16 +179,16 @@ static int sliprock_bind(struct SliprockConnection *con) {
   assert(sliprock_check_charset(con->name, con->namelen) == 0 &&
          "Bogus characters in connection name should have been detected "
          "earlier!");
-  if (get_fname(con->name, con->namelen, (uint32_t)getpid(), &res, 17,
-                &con->path) < 0) {
-    return -1;
+  if ((e = sliprock_get_fname(con->name, con->namelen, (uint32_t)getpid(),
+                              &res, 17, &con->path)) < 0) {
+    return e;
   }
   if (sliprock_randombytes_sysrandom_buf(con->passwd, sizeof con->passwd) <
       0) {
-    return -1;
+    return SLIPROCK_ENORND;
   }
   fd = create_directory_and_file(&con->path);
-  if (INVALID_HANDLE_VALUE == fd)
+  if ((OsHandle)INVALID_HANDLE_VALUE == fd)
     goto fail;
   created_file = 1;
   SLIPROCK_STATIC_ASSERT(sizeof SLIPROCK_MAGIC - 1 == 16);
@@ -192,13 +201,13 @@ static int sliprock_bind(struct SliprockConnection *con) {
     /* Don't double-close – the state of the FD is unspecified.  Better
      * to
      * leak an FD than close an FD that other code could be using. */
-    fd = INVALID_HANDLE_VALUE;
+    fd = (OsHandle)INVALID_HANDLE_VALUE;
     goto fail;
   }
   return errno = 0;
 fail:
   e = errno;
-  if (fd != INVALID_HANDLE_VALUE) {
+  if (fd != (OsHandle)INVALID_HANDLE_VALUE) {
     hclose(fd);
   }
   if (created_file) {
@@ -210,38 +219,35 @@ fail:
   return -(errno = e);
 }
 
-struct SliprockConnection *sliprock_socket(const char *const name,
-                                           size_t const namelen) {
+int sliprock_socket(const char *const name, size_t const namelen,
+                    struct SliprockConnection **connection_) {
   struct SliprockConnection *connection;
+  int err;
+  *connection_ = NULL;
   assert(name != NULL);
-  if (name == NULL) {
-    errno = EFAULT;
-    return NULL;
-  }
-  if (namelen > 1 << 15) {
-    errno = ERANGE;
-    return NULL;
-  }
+  if (namelen > 1 << 15)
+    return SLIPROCK_ERANGE;
   /* This check ensures that connection names are human-readable */
   /* TODO: allow unicode */
-  if (sliprock_check_charset(name, namelen) < 0)
-    return NULL;
+  if ((err = sliprock_check_charset(name, namelen)))
+    return err;
   /* Allocate the connection */
-  connection = sliprock_new(name, namelen);
-  if (NULL == connection)
-    return NULL;
+  if ((err = sliprock_new(name, namelen, connection_)))
+    return err;
+  connection = *connection_;
+  assert(connection != NULL);
   /* Must do this first - otherwise connection->sock is filled with zeros
    * when write_connection() is called, and we get a confusing error
    * ("connection refused") from sliprock_open() */
-  if (sliprock_bind_os(connection) == 0) {
-    if ((errno = sliprock_bind(connection)) == 0) {
+  if ((err = sliprock_bind_os(connection)) == 0) {
+    if ((err = sliprock_bind(connection)) == 0) {
       /* Don't leave a directory and socket lying around in /tmp */
-      return connection;
+      return 0;
     }
     delete_socket(connection);
   }
   free(connection);
-  return NULL;
+  return err;
 }
 
 // See documentation in sliprock.h
@@ -251,58 +257,64 @@ sliprock_close_receiver(struct SliprockReceiver *receiver) {
 }
 
 // See documentation in sliprock.h
-SLIPROCK_API struct SliprockReceiver *
-sliprock_open(const char *const identifier, size_t size, uint32_t pid) {
-  int err;
+SLIPROCK_API int sliprock_open(const char *const identifier, size_t size,
+                               uint32_t pid,
+                               struct SliprockReceiver **receiver) {
+  int err = SLIPROCK_EINTERNALERROR;
   OsHandle fd;
-  struct SliprockReceiver *receiver = NULL;
   struct StringBuf fname;
-  ssize_t res;
+  assert(receiver);
+  *receiver = NULL;
   memset(&fname, 0, sizeof fname);
   char magic[sizeof(SLIPROCK_MAGIC) - 1];
-  if (sliprock_check_charset(identifier, size) != 0)
-    return NULL;
-  errno = 0;
+  if ((err = sliprock_check_charset(identifier, size)))
+    return err;
 #ifndef _WIN32
   assert(pid <= INT_MAX &&
          "PID must be within range of valid process IDs!");
 #endif
-  if (get_fname(identifier, size, pid, NULL, 0, &fname))
-    return NULL;
-  errno = 0;
+  if ((err = sliprock_get_fname(identifier, size, pid, NULL, 0, &fname)))
+    return err;
   fd = openfile(fname.buf, O_RDONLY);
-  if (INVALID_HANDLE_VALUE == fd)
+  if ((OsHandle)INVALID_HANDLE_VALUE == fd) {
+#ifdef _WIN32
+    int is_enoent = GetLastError() == ERROR_FILE_NOT_FOUND;
+#else
+    int is_enoent = errno == ENOENT;
+#endif
+    err = is_enoent ? SLIPROCK_ENOCONN : SLIPROCK_EOSERR;
     goto fail;
-  receiver = calloc(1, sizeof(struct SliprockReceiver));
-  if (NULL == receiver)
-    goto fail;
-  {
-    res = sliprock_read_receiver(fd, receiver, magic);
-    if (res < (ssize_t)MAX_SOCK_LEN) {
-      errno = EINVAL;
-      goto fail;
-    }
   }
-  if (memcmp(magic, SLIPROCK_MAGIC, sizeof SLIPROCK_MAGIC - 1))
+  *receiver = calloc(1, sizeof(struct SliprockReceiver));
+  if (NULL == *receiver) {
+    err = SLIPROCK_ENOMEM;
     goto fail;
-  hclose(fd);
-  free(fname.buf);
-  return receiver;
+  }
+  int res = (int)sliprock_read_receiver(fd, *receiver, magic);
+  if (res != (sizeof SLIPROCK_MAGIC - 1) + 32 + MAX_SOCK_LEN) {
+    if (res >= 0)
+      err = SLIPROCK_EPROTO;
+    else
+      err = SLIPROCK_EOSERR;
+  } else if (!err &&
+             memcmp(magic, SLIPROCK_MAGIC, sizeof SLIPROCK_MAGIC - 1))
+    err = SLIPROCK_EPROTO;
 fail:
-  err = errno;
-  if (INVALID_HANDLE_VALUE != fd)
+  if ((OsHandle)INVALID_HANDLE_VALUE != fd)
     hclose(fd);
   free(fname.buf);
-  sliprock_close_receiver(receiver);
-  errno = err;
-  return NULL;
+  if (err) {
+    sliprock_close_receiver(*receiver);
+    *receiver = NULL;
+  }
+  return err;
 }
 
 SLIPROCK_API uint64_t sliprock_UNSAFEgetRawHandle(
     struct SliprockConnection *con, int should_release) {
   uint64_t handle = (uint64_t)con->fd;
   if (should_release)
-    con->fd = INVALID_HANDLE_VALUE;
+    con->fd = (OsHandle)INVALID_HANDLE_VALUE;
   return handle;
 }
 
