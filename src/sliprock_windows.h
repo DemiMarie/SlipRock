@@ -27,16 +27,19 @@ typedef HANDLE OsHandle;
 #define O_RDWR 3
 #define O_RDONLY 2
 #define O_WRONLY 1
-#ifdef SLIPROCK_WIN_DBG
+#ifdef SLIPROCK_TRACE
 static void sliprock_strerror(void) {
   wchar_t *buf;
-  DWORD buflen;
-  FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-                    FORMAT_MESSAGE_IGNORE_INSERTS |
-                    FORMAT_MESSAGE_FROM_SYSTEM,
-                NULL, GetLastError(), 0, (LPTSTR)&buf, 0, NULL);
+  DWORD buflen = FormatMessage(
+      FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_IGNORE_INSERTS |
+          FORMAT_MESSAGE_FROM_SYSTEM,
+      NULL, GetLastError(), 0, (LPTSTR)&buf, 0, NULL);
+  assert(buflen);
   WriteConsoleW(GetStdHandle(-12), buf, wcslen(buf), &buflen, NULL);
+  LocalFree(buf);
 }
+#else
+static void sliprock_strerror(void) {}
 #endif
 
 static OsHandle openfile(MyChar *path, int mode) {
@@ -54,7 +57,7 @@ static OsHandle openfile(MyChar *path, int mode) {
   }
   HANDLE h = CreateFileW(path, osmode, 0, &sec, creation_mode,
                          FILE_ATTRIBUTE_NORMAL, NULL);
-#if SLIPROCK_WIN_DEBUG
+#ifdef SLIPROCK_TRACE
   if (h == INVALID_HANDLE_VALUE) {
     DWORD q;
     WriteConsoleW(GetStdHandle(-12), path, wcslen(path), &q, NULL);
@@ -63,9 +66,7 @@ static OsHandle openfile(MyChar *path, int mode) {
 #endif
   return h;
 }
-#if 0
-#include <processthreadsapi.h>
-#else
+#ifndef _MSC_VER
 // Taken from Wine
 #define GetCurrentProcessToken() ((HANDLE) ~(ULONG_PTR)3)
 #endif
@@ -77,16 +78,19 @@ INIT_ONCE initialized = INIT_ONCE_STATIC_INIT;
 
 int init_func(void) { return 0; }
 
-static int sliprock_get_home_directory(void **const freeptr, const wchar_t **homedir) {
+static int sliprock_get_home_directory(void **const freeptr,
+                                       const wchar_t **homedir) {
   HANDLE const hCurProc = GetCurrentProcessToken();
   wchar_t *buf = NULL;
   DWORD len = 0;
   *homedir = *freeptr = NULL;
-  if (!GetUserProfileDirectoryW(hCurProc, NULL, &len))
-    return SLIPROCK_EOSERR;
+  GetUserProfileDirectoryW(hCurProc, NULL, &len);
   if ((buf = (wchar_t *)malloc(sizeof(wchar_t) * len)) == NULL)
     return SLIPROCK_ENOMEM;
   if (!GetUserProfileDirectoryW(hCurProc, buf, &len)) {
+#ifdef SLIPROCK_WIN_DBG
+    sliprock_strerror();
+#endif
     free(buf);
     return SLIPROCK_EOSERR;
   }
@@ -216,8 +220,8 @@ retry:
   return 0;
 }
 
-SLIPROCK_API int
-sliprock_accept(struct SliprockConnection *connection, SliprockHandle *handle) {
+SLIPROCK_API int sliprock_accept(struct SliprockConnection *connection,
+                                 SliprockHandle *handle) {
   HANDLE hPipe = sliprock_get_handle_for_connection(connection);
   int err;
   *handle = (SliprockHandle)INVALID_HANDLE_VALUE;
@@ -227,6 +231,7 @@ sliprock_accept(struct SliprockConnection *connection, SliprockHandle *handle) {
   MADE_IT;
   if (ConnectNamedPipe(hPipe, NULL) == 0) {
     err = SLIPROCK_EOSERR;
+    sliprock_strerror();
     goto fail;
   }
   DWORD written_this_time, written = 0;
@@ -296,7 +301,8 @@ static int sliprock_bind_os(struct SliprockConnection *connection) {
   return sliprock_bind_os_raw(connection, &connection->fd);
 }
 
-SLIPROCK_API int sliprock_connect(const struct SliprockReceiver *receiver, SliprockHandle *handle) {
+SLIPROCK_API int sliprock_connect(const struct SliprockReceiver *receiver,
+                                  SliprockHandle *handle) {
   HANDLE hPipe = CreateFileW(
       receiver->sock, GENERIC_READ | GENERIC_WRITE,
       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,

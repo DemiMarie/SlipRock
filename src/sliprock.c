@@ -119,8 +119,10 @@ static int sliprock_get_fname(const char *const srcname, const size_t size,
          "Attempt to create connection with identifier length > INT_MAX!");
 
   decoded_srcname = CopyIdent(srcname, size);
-  if (NULL == decoded_srcname)
+  if (NULL == decoded_srcname) {
+    errcode = SLIPROCK_ENOMEM;
     goto fail;
+  }
 
   errcode = sliprock_get_home_directory(&freeptr, &homedir);
   assert((NULL != homedir) ^ (errcode != 0));
@@ -229,11 +231,15 @@ int sliprock_socket(const char *const name, size_t const namelen,
     return SLIPROCK_ERANGE;
   /* This check ensures that connection names are human-readable */
   /* TODO: allow unicode */
-  if ((err = sliprock_check_charset(name, namelen)))
+  if ((err = sliprock_check_charset(name, namelen))) {
+    assert(err == SLIPROCK_EILSEQ);
     return err;
+  }
   /* Allocate the connection */
-  if ((err = sliprock_new(name, namelen, connection_)))
+  if ((err = sliprock_new(name, namelen, connection_))) {
+    assert(err == SLIPROCK_ENOMEM);
     return err;
+  }
   connection = *connection_;
   assert(connection != NULL);
   /* Must do this first - otherwise connection->sock is filled with zeros
@@ -290,12 +296,17 @@ SLIPROCK_API int sliprock_open(const char *const identifier, size_t size,
     err = SLIPROCK_ENOMEM;
     goto fail;
   }
+  MADE_IT;
   int res = (int)sliprock_read_receiver(fd, *receiver, magic);
-  if (res != (sizeof SLIPROCK_MAGIC - 1) + 32 + MAX_SOCK_LEN) {
-    if (res >= 0)
+  if (res !=
+      (sizeof SLIPROCK_MAGIC - 1) + 32 + sizeof(TCHAR) * MAX_SOCK_LEN) {
+    if (res >= 0) {
+      MADE_IT;
       err = SLIPROCK_EPROTO;
-    else
+    } else {
+      MADE_IT;
       err = SLIPROCK_EOSERR;
+    }
   } else if (!err &&
              memcmp(magic, SLIPROCK_MAGIC, sizeof SLIPROCK_MAGIC - 1))
     err = SLIPROCK_EPROTO;
