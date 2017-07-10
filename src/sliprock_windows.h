@@ -66,10 +66,8 @@ static OsHandle openfile(MyChar *path, int mode) {
 #endif
   return h;
 }
-#ifndef _MSC_VER
 // Taken from Wine
 #define GetCurrentProcessToken() ((HANDLE) ~(ULONG_PTR)3)
-#endif
 #define snprintf _wsnprintf
 #define CON_PATH(con) ((con)->pipename)
 #define SLIPROCK_MAGIC "\0SlipRock\n\rPIPE\x1a"
