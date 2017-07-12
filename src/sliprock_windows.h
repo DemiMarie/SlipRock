@@ -318,6 +318,7 @@ SLIPROCK_API int sliprock_connect(const struct SliprockReceiver *receiver,
   if ((read = sliprock_read_all(hPipe, pass, sizeof pass)) !=
       sizeof pass) {
 #ifdef SLIPROCK_TRACE
+    sliprock_strerror();
     fprintf(stderr, "Protocol malfunction! Read %lu bytes, expected %Iu\n",
             read, sizeof pass);
     fflush(stderr);
