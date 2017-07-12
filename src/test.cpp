@@ -79,6 +79,7 @@ bool client(char (&buf)[size], SliprockConnection *con, bool &finished,
   BOOST_TEST(read == sizeof buf);
   BOOST_TEST(0 != WriteFile(fd, buf2, sizeof buf, &read, nullptr));
   BOOST_TEST(read == sizeof buf);
+  FlushFileBuffers(fd);
 #else
   if (fd >= 0) {
     BOOST_TEST(sizeof buf == read(fd, buf2, sizeof buf));
@@ -140,6 +141,8 @@ bool server(char (&buf)[n], SliprockConnection *con, bool &finished,
   DWORD written;
   MADE_IT;
   if (WriteFile(handle, buf, sizeof buf, &written, NULL) == 0)
+    return false;
+  if (!FlushFileBuffers(handle))
     return false;
   MADE_IT;
   if (written != sizeof buf3)
