@@ -31,13 +31,15 @@ typedef HANDLE OsHandle;
 static void sliprock_strerror(void) {
   wchar_t *buf;
   DWORD dummy;
-  DWORD buflen = FormatMessageA(
+  DWORD buflen = FormatMessageW(
       FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_IGNORE_INSERTS |
           FORMAT_MESSAGE_FROM_SYSTEM,
       NULL, GetLastError(), 0, (LPTSTR)&buf, 0, NULL);
   assert(buflen);
-  // WriteConsoleW(GetStdHandle(-12), buf, buflen, &dummy, NULL);
-  WriteFile(GetStdHandle(-12), buf, buflen, &dummy, NULL);
+  if (!WriteConsoleW(GetStdHandle(-12), buf, buflen, &dummy, NULL)) {
+     sliprock_trace("bad stderr");
+  }
+  //WriteFile(GetStdHandle(-12), buf, buflen, &dummy, NULL);
   LocalFree(buf);
 }
 #else
@@ -61,7 +63,6 @@ static OsHandle openfile(MyChar *path, int mode) {
                          FILE_ATTRIBUTE_NORMAL, NULL);
 #ifdef SLIPROCK_TRACE
   if (h == INVALID_HANDLE_VALUE) {
-    DWORD q;
     sliprock_strerror();
   }
 #endif
@@ -286,7 +287,7 @@ static ssize_t sliprock_read_receiver(OsHandle fd,
   read = sliprock_read_all(fd, buf, sizeof buf);
   if (read != sizeof buf) {
 #ifdef SLIPROCK_TRACE
-    fprintf(stderr, "Read %d bytes - expected %d\n", read, sizeof buf);
+    fprintf(stderr, "Read %lu bytes - expected %Iu\n", read, sizeof buf);
 #endif
     return -1;
   }
@@ -317,7 +318,7 @@ SLIPROCK_API int sliprock_connect(const struct SliprockReceiver *receiver,
   if ((read = sliprock_read_all(hPipe, pass, sizeof pass)) !=
       sizeof pass) {
 #ifdef SLIPROCK_TRACE
-    fprintf(stderr, "Protocol malfunction! Read %d bytes, expected %d\n",
+    fprintf(stderr, "Protocol malfunction! Read %lu bytes, expected %Iu\n",
             read, sizeof pass);
     fflush(stderr);
 #endif

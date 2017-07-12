@@ -14,14 +14,21 @@
 #endif
 #endif
 #define MAGIC_SIZE (sizeof SLIPROCK_MAGIC - 1)
+#ifdef SLIPROCK_TRACE
+#include <stdio.h>
+#define MADE_IT                                                           \
+  (sliprock_trace("File %s, line %d reached\n", __FILE__, __LINE__))
+#else
+#define MADE_IT ((void)0)
+#endif
 #if defined __GNUC__ || defined __INTEL_COMPILER
 __attribute__((format(printf, 1, 2)))
 #endif
 static inline void
 sliprock_trace(const char *str, ...) {
 #ifdef SLIPROCK_TRACE
-  va_args args;
-  va_start(str, args);
+  va_list args;
+  va_start(args, str);
   vfprintf(stderr, str, args);
   va_end(args);
   fflush(stderr);
@@ -29,12 +36,6 @@ sliprock_trace(const char *str, ...) {
   (void)str;
 #endif
 }
-#ifdef SLIPROCK_TRACE
-#define MADE_IT                                                           \
-  (sliprock_trace("File %s, line %d reached\n", __FILE__, __LINE__))
-#else
-#define MADE_IT ((void)0)
-#endif
 #ifdef _WIN32
 #include <windows.h>
 typedef wchar_t MyChar;

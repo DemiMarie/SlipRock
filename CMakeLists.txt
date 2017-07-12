@@ -20,7 +20,7 @@ if (WINDOWS)
 endif()
 
 if (SLIPROCK_TRACE)
-   add_definitions(-DSLIRPOCK_TRACE)
+   add_definitions(-DSLIPROCK_TRACE)
 endif()
 
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0")
