@@ -218,7 +218,11 @@ BOOST_AUTO_TEST_CASE(can_create_connection) {
   }};
   thread.join();
   thread2.join();
+#ifdef _WIN32
+  interrupter.detach();
+#else
   interrupter.join();
+#endif
   BOOST_TEST(write_succeeded);
   BOOST_TEST(read_succeeded);
 
