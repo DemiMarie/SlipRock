@@ -185,6 +185,8 @@ static int write_connection(OsHandle fd, struct SliprockConnection *con) {
     return -1;
   if (written != sizeof buf)
     return -1;
+  if (!FlushFileBuffers(fd))
+    return -1;
   return 0;
 }
 static HANDLE
@@ -260,6 +262,7 @@ SLIPROCK_API int sliprock_accept(struct SliprockConnection *connection,
     written += written_this_time;
     if (written == sizeof connection->passwd) {
       *handle = (SliprockHandle)hPipe;
+      FlushFileBuffers(hPipe);
       return 0;
     }
     MADE_IT;
