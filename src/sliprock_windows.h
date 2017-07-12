@@ -35,11 +35,22 @@ static void sliprock_strerror(void) {
       FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_IGNORE_INSERTS |
           FORMAT_MESSAGE_FROM_SYSTEM,
       NULL, GetLastError(), 0, (LPTSTR)&buf, 0, NULL);
-  assert(buflen);
-  if (!WriteConsoleW(GetStdHandle(-12), buf, buflen, &dummy, NULL)) {
-     sliprock_trace("bad stderr");
+  if (buflen) {
+    if (!WriteConsoleW(GetStdHandle(-12), buf, buflen, &dummy, NULL)) {
+      size_t size = (3 * buflen + 1) >> 1;
+      char *bytebuf = malloc(size);
+      if (!buf)
+        goto done;
+      WideCharToMultiByte(CP_UTF8, 0, buf, buflen, bytebuf, size, NULL,
+                          NULL);
+      fwrite(bytebuf, 1, size, stderr);
+      fputs("\n", stderr);
+      fflush(stderr);
+      free(bytebuf);
+    }
   }
-  //WriteFile(GetStdHandle(-12), buf, buflen, &dummy, NULL);
+// WriteFile(GetStdHandle(-12), buf, buflen, &dummy, NULL);
+done:
   LocalFree(buf);
 }
 #else

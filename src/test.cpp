@@ -64,7 +64,7 @@ bool client(char (&buf)[size], SliprockConnection *con, bool &finished,
 #endif
   SliprockReceiver *receiver;
   int x = sliprock_open("dummy_valr", sizeof("dummy_val") - 1,
-                              sliprock_getpid(), &receiver);
+                        sliprock_getpid(), &receiver);
   BOOST_TEST(x == 0);
   BOOST_REQUIRE(x == 0);
   MADE_IT;
