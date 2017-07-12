@@ -14,10 +14,24 @@
 #endif
 #endif
 #define MAGIC_SIZE (sizeof SLIPROCK_MAGIC - 1)
+#if defined __GNUC__ || defined __INTEL_COMPILER
+__attribute__((format(printf, 1, 2)))
+#endif
+static inline void
+sliprock_trace(const char *str, ...) {
 #ifdef SLIPROCK_TRACE
-#define MADE_IT                                                           \
-  ((void)(fprintf(stderr, "File %s, line %d reached\n", __FILE__, __LINE__),       \
-          fflush(stderr)))
+  va_args args;
+  va_start(str, args);
+  vfprintf(stderr, str, args);
+  va_end(args);
+  fflush(stderr);
+#else
+  (void)str;
+#endif
+}
+#ifdef SLIPROCK_TRACE
+#define MADE_IT                                                                \
+  (sliprock_trace("File %s, line %d reached\n", __FILE__, __LINE__))
 #else
 #define MADE_IT ((void)0)
 #endif
@@ -82,14 +96,14 @@ sliprock_randombytes_sysrandom_buf(void *const buf, const size_t size);
  */
 #ifdef SLIPROCK_DEBUG_FUEL
 _Atomic ssize_t sliprock_fuel;
-#define CHECK_FUEL(x)                                                     \
-  if (__atomic_fetch_add(&sliprock_fuel, -1) < 0) {                       \
-    x;                                                                    \
-  } else                                                                  \
-    do {                                                                  \
+#define CHECK_FUEL(x)                                                          \
+  if (__atomic_fetch_add(&sliprock_fuel, -1) < 0) {                            \
+    x;                                                                         \
+  } else                                                                       \
+    do {                                                                       \
     } while (0)
 
-#define CHECK_FUEL_EXPR(error, expr)                                      \
+#define CHECK_FUEL_EXPR(error, expr)                                           \
   (__atomic_fetch_add(&sliprock_fuel, -1) < 0 ? (error) : (expr))
 
 inline void *sliprock_malloc(size_t size) {
@@ -112,8 +126,8 @@ inline void *sliprock_realloc(void *ptr, size_t size) {
 #define calloc sliprock_calloc
 
 #else /* !defined SLIPROCK_DEBUG_FUEL */
-#define CHECK_FUEL(x)                                                     \
-  do {                                                                    \
+#define CHECK_FUEL(x)                                                          \
+  do {                                                                         \
   } while (0)
 #define CHECK_FUEL_EXPR(x, y) (y)
 #endif /* SLIPROCK_DEBUG_FUEL */

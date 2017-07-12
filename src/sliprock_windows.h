@@ -30,12 +30,14 @@ typedef HANDLE OsHandle;
 #ifdef SLIPROCK_TRACE
 static void sliprock_strerror(void) {
   wchar_t *buf;
-  DWORD buflen = FormatMessage(
+  DWORD dummy;
+  DWORD buflen = FormatMessageA(
       FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_IGNORE_INSERTS |
           FORMAT_MESSAGE_FROM_SYSTEM,
       NULL, GetLastError(), 0, (LPTSTR)&buf, 0, NULL);
   assert(buflen);
-  WriteConsoleW(GetStdHandle(-12), buf, wcslen(buf), &buflen, NULL);
+  //WriteConsoleW(GetStdHandle(-12), buf, buflen, &dummy, NULL);
+  WriteFile(GetStdHandle(-12), buf, buflen, &dummy, NULL);
   LocalFree(buf);
 }
 #else
@@ -60,7 +62,6 @@ static OsHandle openfile(MyChar *path, int mode) {
 #ifdef SLIPROCK_TRACE
   if (h == INVALID_HANDLE_VALUE) {
     DWORD q;
-    WriteConsoleW(GetStdHandle(-12), path, wcslen(path), &q, NULL);
     sliprock_strerror();
   }
 #endif
