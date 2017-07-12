@@ -211,7 +211,7 @@ BOOST_AUTO_TEST_CASE(can_create_connection) {
     struct timespec q = {1, 0};
     nanosleep(&q, nullptr);
 #else
-    Sleep(1000000);
+    Sleep(10000);
 #endif
     interrupt_thread(lock2, read_done, thread);
     interrupt_thread(lock, write_done, thread2);
