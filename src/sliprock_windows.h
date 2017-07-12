@@ -36,7 +36,7 @@ static void sliprock_strerror(void) {
           FORMAT_MESSAGE_FROM_SYSTEM,
       NULL, GetLastError(), 0, (LPTSTR)&buf, 0, NULL);
   assert(buflen);
-  //WriteConsoleW(GetStdHandle(-12), buf, buflen, &dummy, NULL);
+  // WriteConsoleW(GetStdHandle(-12), buf, buflen, &dummy, NULL);
   WriteFile(GetStdHandle(-12), buf, buflen, &dummy, NULL);
   LocalFree(buf);
 }
@@ -317,8 +317,8 @@ SLIPROCK_API int sliprock_connect(const struct SliprockReceiver *receiver,
   if ((read = sliprock_read_all(hPipe, pass, sizeof pass)) !=
       sizeof pass) {
 #ifdef SLIPROCK_TRACE
-    fprintf(stderr, "Protocol malfunction! Read %d bytes, expected %d\n", read,
-           sizeof pass);
+    fprintf(stderr, "Protocol malfunction! Read %d bytes, expected %d\n",
+            read, sizeof pass);
     fflush(stderr);
 #endif
     err = SLIPROCK_EPROTO;
