@@ -311,10 +311,11 @@ SLIPROCK_API int sliprock_connect(const struct SliprockReceiver *receiver,
       OPEN_EXISTING, SECURITY_SQOS_PRESENT | SECURITY_ANONYMOUS, NULL);
   int err;
   DWORD read;
+  unsigned char pass[sizeof receiver->passcode];
   *handle = (SliprockHandle)INVALID_HANDLE_VALUE;
   if (INVALID_HANDLE_VALUE == hPipe)
     return SLIPROCK_EOSERR;
-  unsigned char pass[sizeof receiver->passcode];
+  sliprock_strerror();
   if ((read = sliprock_read_all(hPipe, pass, sizeof pass)) !=
       sizeof pass) {
 #ifdef SLIPROCK_TRACE
