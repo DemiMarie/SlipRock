@@ -242,7 +242,8 @@ SLIPROCK_API int sliprock_accept(struct SliprockConnection *connection,
   if (hPipe == INVALID_HANDLE_VALUE)
     return SLIPROCK_EOSERR;
   MADE_IT;
-  if (ConnectNamedPipe(hPipe, NULL) == 0) {
+  if (ConnectNamedPipe(hPipe, NULL) == 0 &&
+      GetLastError() != ERROR_PIPE_CONNECTED) {
     err = SLIPROCK_EOSERR;
     sliprock_strerror();
     goto fail;
