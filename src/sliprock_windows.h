@@ -258,6 +258,10 @@ SLIPROCK_API int sliprock_accept(struct SliprockConnection *connection,
       err = SLIPROCK_EPROTO;
       goto fail;
     }
+    if (FlushFileBuffers(hPipe) == 0) {
+      err = SLIPROCK_EOSERR;
+      goto fail;
+    }
     MADE_IT;
     assert(written_this_time <= sizeof connection->passwd - written);
     written += written_this_time;
