@@ -241,24 +241,26 @@ retry:
 
 SLIPROCK_API int sliprock_accept(struct SliprockConnection *connection,
                                  SliprockHandle *handle) {
+  sliprock_trace(
+      "sliprock_accept() called.  Getting connection handle.\n");
   HANDLE hPipe = sliprock_get_handle_for_connection(connection, false);
   int err;
   *handle = (SliprockHandle)INVALID_HANDLE_VALUE;
-  MADE_IT;
   if (hPipe == INVALID_HANDLE_VALUE) {
     sliprock_trace("Invalid handle!\n");
     sliprock_strerror();
     return SLIPROCK_EOSERR;
   }
   sliprock_trace("Valid connection handle\n");
-  MADE_IT;
   SetLastError(0);
   if (ConnectNamedPipe(hPipe, NULL) == 0 &&
       GetLastError() != ERROR_PIPE_CONNECTED) {
     err = SLIPROCK_EOSERR;
+    sliprock_trace("ConnectNamedPipe() failed\n");
     sliprock_strerror();
     goto fail;
   }
+  sliprock_trace("ConnectNamedPipe() succeeded\n");
   DWORD written_this_time, written = 0;
   MADE_IT;
   while (1) {
@@ -271,6 +273,7 @@ SLIPROCK_API int sliprock_accept(struct SliprockConnection *connection,
       err = SLIPROCK_EPROTO;
       goto fail;
     }
+    sliprock_trace("Write to pipe succeeded\n");
     MADE_IT;
     if (FlushFileBuffers(hPipe) == 0) {
       sliprock_strerror();
