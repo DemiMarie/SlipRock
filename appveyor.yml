@@ -31,11 +31,10 @@ before_test:
       } else {
         $limit = 3
       }
-      $path = "cmd /c /k `"`"src\${config}\mytest.exe`" 2>&1`""
       Write-Host $path
       for ($i = 0; $i -lt $limit; $i++) {
         Write-Host "Run number $i"
-        &$path
+        cmd /c /k "src\${config}\mytest.exe 2>&1"
       }
 
 notifications:
