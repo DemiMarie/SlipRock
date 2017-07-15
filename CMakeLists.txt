@@ -19,7 +19,7 @@ if (WINDOWS)
    set(both_flag_list "${both_flag_list};-static-libgcc;-static-libstdc++")
 endif()
 
-if (SLIPROCK_TRACE)
+if (SLIPROCK_TRACE AND NOT SLIPROCK_TRACE STREQUAL "Release")
    add_definitions(-DSLIPROCK_TRACE)
 endif()
 

@@ -18,7 +18,7 @@ before_build:
   - >-
     cmake . -G "Visual Studio 14 2015 Win64" -DCMAKE_INSTALL_PREFIX=C:\Projects\libs
     "-DCMAKE_BUILD_TYPE=%CONFIGURATION%" -DBOOST_ROOT=C:\Libraries\boost_1_63_0
-    -DSLIPROCK_TRACE=1
+    "-DSLIPROCK_TRACE=%CONFIGURATION%"
 
 build:
   project: INSTALL.vcxproj
