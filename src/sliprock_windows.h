@@ -218,8 +218,7 @@ sliprock_get_handle_for_connection(struct SliprockConnection *connection) {
   SetLastError(err);
   return hPipe;
 }
-static int sliprock_bind_os_raw(struct SliprockConnection *connection,
-                                HANDLE *pipe) {
+static int sliprock_bind_os(struct SliprockConnection *connection) {
   uint64_t random[1];
 retry:
   if (sliprock_randombytes_sysrandom_buf(random, sizeof random) < 0)
@@ -234,9 +233,9 @@ retry:
     abort();
   }
 
-  *pipe = sliprock_get_handle_for_connection(connection);
-  if (INVALID_HANDLE_VALUE == *pipe) {
-    if (GetLastError() == ERROR_ACCESS_DENIED)
+  sliprock_get_handle_for_connection(connection);
+  if (INVALID_HANDLE_VALUE == connection->hPipe) {
+    if (ERROR_ACCESS_DENIED == connection->lastError)
       goto retry;
     else
       return SLIPROCK_EOSERR;
@@ -350,10 +349,6 @@ static ssize_t sliprock_read_receiver(OsHandle fd,
   buf2 += sizeof receiver->passcode;
   memcpy(receiver->sock, buf2, sizeof receiver->sock);
   return read;
-}
-
-static int sliprock_bind_os(struct SliprockConnection *connection) {
-  return sliprock_bind_os_raw(connection, &connection->fd);
 }
 
 SLIPROCK_API int sliprock_connect(const struct SliprockReceiver *receiver,
