@@ -239,8 +239,11 @@ SLIPROCK_API int sliprock_accept(struct SliprockConnection *connection,
   int err;
   *handle = (SliprockHandle)INVALID_HANDLE_VALUE;
   MADE_IT;
-  if (hPipe == INVALID_HANDLE_VALUE)
+  if (hPipe == INVALID_HANDLE_VALUE) {
+    sliprock_trace("Invalid handle!\n");
     return SLIPROCK_EOSERR;
+  }
+  sliprock_trace("Valid connection handle\n");
   MADE_IT;
   if (ConnectNamedPipe(hPipe, NULL) == 0 &&
       GetLastError() != ERROR_PIPE_CONNECTED) {
