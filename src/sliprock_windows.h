@@ -21,6 +21,10 @@
 #define sliprock_unlink DeleteFileW
 #define rmdir RemoveDirectoryW
 
+typedef _Bool bool;
+#define true /* */ ((_Bool) 1)
+#define false /* */ ((_Bool) 0)
+
 typedef wchar_t MyChar;
 typedef HANDLE OsHandle;
 #define getpid GetCurrentProcessId
@@ -190,7 +194,8 @@ static int write_connection(OsHandle fd, struct SliprockConnection *con) {
   return 0;
 }
 static HANDLE
-sliprock_get_handle_for_connection(struct SliprockConnection *connection) {
+sliprock_get_handle_for_connection(struct SliprockConnection *connection,
+                                   bool is_first) {
   SECURITY_ATTRIBUTES sec_attributes;
   /* Can't hurt.  Might help (IIRC several Windows API structs must be
    * zeroed).
@@ -199,13 +204,14 @@ sliprock_get_handle_for_connection(struct SliprockConnection *connection) {
 
   sec_attributes.nLength = sizeof sec_attributes;
   sec_attributes.bInheritHandle = 0; /* not necessary – already zeroed */
-  return CreateNamedPipeW(connection->pipename,
-                          PIPE_ACCESS_DUPLEX |
-                              FILE_FLAG_FIRST_PIPE_INSTANCE,
-                          PIPE_TYPE_MESSAGE | PIPE_REJECT_REMOTE_CLIENTS,
-                          PIPE_UNLIMITED_INSTANCES,
-                          1U << 12, /* Small to preserve nonpaged pool */
-                          1U << 12, 0, &sec_attributes);
+  return CreateNamedPipeW(
+      connection->pipename,
+      PIPE_ACCESS_DUPLEX |
+          (FILE_FLAG_FIRST_PIPE_INSTANCE & (!(DWORD)is_first - 1)),
+      PIPE_TYPE_MESSAGE | PIPE_REJECT_REMOTE_CLIENTS,
+      PIPE_UNLIMITED_INSTANCES,
+      1U << 12, /* Small to preserve nonpaged pool */
+      1U << 12, 0, &sec_attributes);
 }
 static int sliprock_bind_os_raw(struct SliprockConnection *connection,
                                 HANDLE *pipe) {
@@ -223,7 +229,7 @@ retry:
     abort();
   }
 
-  *pipe = sliprock_get_handle_for_connection(connection);
+  *pipe = sliprock_get_handle_for_connection(connection, true);
   if (INVALID_HANDLE_VALUE == *pipe) {
     if (GetLastError() == ERROR_ACCESS_DENIED)
       goto retry;
@@ -235,7 +241,7 @@ retry:
 
 SLIPROCK_API int sliprock_accept(struct SliprockConnection *connection,
                                  SliprockHandle *handle) {
-  HANDLE hPipe = sliprock_get_handle_for_connection(connection);
+  HANDLE hPipe = sliprock_get_handle_for_connection(connection, false);
   int err;
   *handle = (SliprockHandle)INVALID_HANDLE_VALUE;
   MADE_IT;
