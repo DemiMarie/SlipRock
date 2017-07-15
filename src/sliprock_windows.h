@@ -255,6 +255,7 @@ SLIPROCK_API int sliprock_accept(struct SliprockConnection *connection,
     if (WriteFile(hPipe, connection->passwd + written,
                   sizeof connection->passwd - written, &written_this_time,
                   NULL) == 0) {
+      sliprock_trace("Failed to write to pipe");
       err = SLIPROCK_EPROTO;
       goto fail;
     }
@@ -287,6 +288,8 @@ static DWORD sliprock_read_all(HANDLE hnd, void *buf, DWORD size) {
   DWORD read;
   do {
     if (!ReadFile(hnd, buf_, size, &read, 0))
+      break;
+    if (read == 0)
       break;
     if (read > size)
       abort();
@@ -327,7 +330,8 @@ SLIPROCK_API int sliprock_connect(const struct SliprockReceiver *receiver,
   HANDLE hPipe = CreateFileW(
       receiver->sock, GENERIC_READ | GENERIC_WRITE,
       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
-      OPEN_EXISTING, SECURITY_SQOS_PRESENT | SECURITY_ANONYMOUS, NULL);
+      OPEN_EXISTING, SECURITY_SQOS_PRESENT | SECURITY_ANONYMOUS |
+      FILE_FLAG_OVERLAPPED, NULL);
   int err;
   DWORD read;
   unsigned char pass[sizeof receiver->passcode];
@@ -335,6 +339,7 @@ SLIPROCK_API int sliprock_connect(const struct SliprockReceiver *receiver,
   if (INVALID_HANDLE_VALUE == hPipe)
     return SLIPROCK_EOSERR;
   sliprock_strerror();
+  MADE_IT;
   if ((read = sliprock_read_all(hPipe, pass, sizeof pass)) !=
       sizeof pass) {
 #ifdef SLIPROCK_TRACE

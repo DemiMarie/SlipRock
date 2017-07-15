@@ -90,8 +90,8 @@ bool client(char (&buf)[size], SliprockConnection *con, bool &finished,
   static_assert(sizeof con->address == sizeof receiver->sock,
                 "Connection size mismatch");
   BOOST_TEST(memcmp(&buf2[0], &buf[0], sizeof buf) == 0);
-  puts(buf);
-  puts(buf2);
+  fwrite(buf, 1, sizeof buf, stderr);
+  fwrite(buf2, 1, sizeof buf2, stderr);
 #ifndef _WIN32
   BOOST_TEST((int)fd > -1);
 #endif
@@ -201,7 +201,7 @@ BOOST_AUTO_TEST_CASE(can_create_connection) {
 
   std::mutex lock, lock2;
   bool read_done = false, write_done = false;
-  char buf[] = "Test message!";
+  char buf[] = "Test message!\n";
   bool write_succeeded = false, read_succeeded = false;
   std::thread thread([&]() {
     if (!(read_succeeded = server(buf, con, read_done, lock2)))
