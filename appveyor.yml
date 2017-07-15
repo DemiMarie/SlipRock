@@ -35,7 +35,7 @@ before_test:
       Write-Host $path
       for ($i = 0; $i -lt $limit; $i++) {
         Write-Host "Run number $i"
-        &$path
+        &$path 2>&1
       }
 
 notifications:
