@@ -49,8 +49,13 @@ SLIPROCK_API void sliprock_close(struct SliprockConnection *connection) {
     sliprock_unlink(connection->path.buf);
     free((void *)connection->path.buf);
   }
-  if (connection->fd != (OsHandle)INVALID_HANDLE_VALUE)
-    hclose(connection->fd);
+#ifndef _WIN32
+  if (-1 != connection->fd)
+    close(connection->fd);
+#else
+  if (INVALID_HANDLE_VALUE != connection->hPipe)
+    CloseHandle(connection->hPipe);
+#endif
   delete_socket(connection);
   free(connection);
 }
@@ -323,10 +328,20 @@ fail:
 
 SLIPROCK_API uint64_t sliprock_UNSAFEgetRawHandle(
     struct SliprockConnection *con, int should_release) {
+#ifndef _WIN32
   uint64_t handle = (uint64_t)con->fd;
   if (should_release)
     con->fd = (OsHandle)INVALID_HANDLE_VALUE;
   return handle;
+#else
+  HANDLE h;
+  (void)should_release;
+  if (DuplicateHandle(GetCurrentProcess(), con->hPipe, GetCurrentProcess(),
+                      &h, 0, FALSE, DUPLICATE_SAME_ACCESS))
+    return (uint64_t)h;
+  else
+    return (uint64_t)INVALID_HANDLE_VALUE;
+#endif
 }
 
 SLIPROCK_API const unsigned char *
