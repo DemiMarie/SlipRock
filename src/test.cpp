@@ -20,6 +20,7 @@
 #include <stdexcept>
 #include <stdlib.h>
 #include <thread>
+#include <type_traits>
 
 #ifdef _WIN32
 #define address pipename
@@ -176,8 +177,12 @@ static void interrupt_thread(std::mutex &lock, const bool &read_done,
   std::unique_lock<std::mutex> locker(lock);
   if (!read_done) {
 #ifndef _WIN32
+    static_assert(std::is_same<std::thread::native_handle_type, pthread_t>::value,
+                  "Bad native handle type");
     pthread_kill(thread.native_handle(), SIGPIPE);
 #elif _MSC_VER
+    static_assert(std::is_same<std::thread::native_handle_type, HANDLE>::value,
+                  "Bad native handle type");
     CancelSynchronousIo(thread.native_handle());
 #else
     (void)thread;
@@ -214,7 +219,7 @@ BOOST_AUTO_TEST_CASE(can_create_connection) {
     struct timespec q = {1, 0};
     nanosleep(&q, nullptr);
 #else
-    Sleep(10000);
+    Sleep(100000);
 #endif
     sliprock_trace("Interrupting thread\n");
     interrupt_thread(lock2, read_done, thread);
