@@ -61,6 +61,8 @@ struct SliprockConnection {
   OsHandle fd;
 #ifdef _WIN32
   wchar_t pipename[MAX_SOCK_LEN];
+  HANDLE hPipe;
+  DWORD lastError;
 #else
   struct sockaddr_un address;
 #endif

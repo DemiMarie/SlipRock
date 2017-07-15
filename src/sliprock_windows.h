@@ -194,9 +194,10 @@ static int write_connection(OsHandle fd, struct SliprockConnection *con) {
   return 0;
 }
 static HANDLE
-sliprock_get_handle_for_connection(struct SliprockConnection *connection,
-                                   bool is_first) {
+sliprock_get_handle_for_connection(struct SliprockConnection *connection) {
   SECURITY_ATTRIBUTES sec_attributes;
+  HANDLE hPipe = connection->hPipe;
+  DWORD err = connection->lastError;
   /* Can't hurt.  Might help (IIRC several Windows API structs must be
    * zeroed).
    */
@@ -204,14 +205,18 @@ sliprock_get_handle_for_connection(struct SliprockConnection *connection,
 
   sec_attributes.nLength = sizeof sec_attributes;
   sec_attributes.bInheritHandle = 0; /* not necessary – already zeroed */
-  return CreateNamedPipeW(
+  SetLastError(0);
+  connection->hPipe = CreateNamedPipeW(
       connection->pipename,
       PIPE_ACCESS_DUPLEX |
-          (FILE_FLAG_FIRST_PIPE_INSTANCE & (!(DWORD)is_first - 1)),
+          (NULL == hPipe ? FILE_FLAG_FIRST_PIPE_INSTANCE : 0),
       PIPE_TYPE_MESSAGE | PIPE_REJECT_REMOTE_CLIENTS,
       PIPE_UNLIMITED_INSTANCES,
       1U << 12, /* Small to preserve nonpaged pool */
       1U << 12, 0, &sec_attributes);
+  connection->lastError = GetLastError();
+  SetLastError(err);
+  return hPipe;
 }
 static int sliprock_bind_os_raw(struct SliprockConnection *connection,
                                 HANDLE *pipe) {
@@ -229,7 +234,7 @@ retry:
     abort();
   }
 
-  *pipe = sliprock_get_handle_for_connection(connection, true);
+  *pipe = sliprock_get_handle_for_connection(connection);
   if (INVALID_HANDLE_VALUE == *pipe) {
     if (GetLastError() == ERROR_ACCESS_DENIED)
       goto retry;
@@ -243,9 +248,8 @@ SLIPROCK_API int sliprock_accept(struct SliprockConnection *connection,
                                  SliprockHandle *handle) {
   sliprock_trace(
       "sliprock_accept() called.  Getting connection handle.\n");
-  HANDLE hPipe = sliprock_get_handle_for_connection(connection, false);
+  HANDLE hPipe = sliprock_get_handle_for_connection(connection);
   int err;
-  *handle = (SliprockHandle)INVALID_HANDLE_VALUE;
   if (hPipe == INVALID_HANDLE_VALUE) {
     sliprock_trace("Invalid handle!\n");
     sliprock_strerror();
@@ -354,16 +358,17 @@ static int sliprock_bind_os(struct SliprockConnection *connection) {
 
 SLIPROCK_API int sliprock_connect(const struct SliprockReceiver *receiver,
                                   SliprockHandle *handle) {
+  int err;
+  DWORD read;
+  unsigned char pass[sizeof receiver->passcode];
+  OVERLAPPED overlapped;
   HANDLE hPipe = CreateFileW(
       receiver->sock, GENERIC_READ | GENERIC_WRITE,
       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
       OPEN_EXISTING,
       SECURITY_SQOS_PRESENT | SECURITY_ANONYMOUS | FILE_FLAG_OVERLAPPED,
       NULL);
-  int err;
-  DWORD read;
-  unsigned char pass[sizeof receiver->passcode];
-  OVERLAPPED overlapped;
+  sliprock_trace("Created file\n");
   ZeroMemory(&overlapped, sizeof overlapped);
   *handle = (SliprockHandle)INVALID_HANDLE_VALUE;
   if (INVALID_HANDLE_VALUE == hPipe)

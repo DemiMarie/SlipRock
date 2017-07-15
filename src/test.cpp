@@ -177,12 +177,14 @@ static void interrupt_thread(std::mutex &lock, const bool &read_done,
   std::unique_lock<std::mutex> locker(lock);
   if (!read_done) {
 #ifndef _WIN32
-    static_assert(std::is_same<std::thread::native_handle_type, pthread_t>::value,
-                  "Bad native handle type");
+    static_assert(
+        std::is_same<std::thread::native_handle_type, pthread_t>::value,
+        "Bad native handle type");
     pthread_kill(thread.native_handle(), SIGPIPE);
 #elif _MSC_VER
-    static_assert(std::is_same<std::thread::native_handle_type, HANDLE>::value,
-                  "Bad native handle type");
+    static_assert(
+        std::is_same<std::thread::native_handle_type, HANDLE>::value,
+        "Bad native handle type");
     CancelSynchronousIo(thread.native_handle());
 #else
     (void)thread;
