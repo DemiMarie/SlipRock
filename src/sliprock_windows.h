@@ -247,10 +247,12 @@ SLIPROCK_API int sliprock_accept(struct SliprockConnection *connection,
   MADE_IT;
   if (hPipe == INVALID_HANDLE_VALUE) {
     sliprock_trace("Invalid handle!\n");
+    sliprock_strerror();
     return SLIPROCK_EOSERR;
   }
   sliprock_trace("Valid connection handle\n");
   MADE_IT;
+  SetLastError(0);
   if (ConnectNamedPipe(hPipe, NULL) == 0 &&
       GetLastError() != ERROR_PIPE_CONNECTED) {
     err = SLIPROCK_EOSERR;
@@ -264,11 +266,15 @@ SLIPROCK_API int sliprock_accept(struct SliprockConnection *connection,
     if (WriteFile(hPipe, connection->passwd + written,
                   sizeof connection->passwd - written, &written_this_time,
                   NULL) == 0) {
-      sliprock_trace("Failed to write to pipe");
+      sliprock_strerror();
+      sliprock_trace("Failed to write to pipe\n");
       err = SLIPROCK_EPROTO;
       goto fail;
     }
+    MADE_IT;
     if (FlushFileBuffers(hPipe) == 0) {
+      sliprock_strerror();
+      sliprock_trace("FlushFileBuffers() failed\n");
       err = SLIPROCK_EOSERR;
       goto fail;
     }
