@@ -216,6 +216,7 @@ BOOST_AUTO_TEST_CASE(can_create_connection) {
 #else
     Sleep(10000);
 #endif
+    sliprock_trace("Interrupting thread\n");
     interrupt_thread(lock2, read_done, thread);
     interrupt_thread(lock, write_done, thread2);
   }};
