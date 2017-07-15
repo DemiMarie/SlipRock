@@ -36,6 +36,9 @@ before_test:
       for ($i = 0; $i -lt $limit; $i++) {
         Write-Host "Run number $i"
         cmd /s /c "src\${config}\mytest.exe 2>&1"
+        if ($? -eq 0) {
+          throw "Error: command failed with exit code $?"
+        }
       }
 
 notifications:
