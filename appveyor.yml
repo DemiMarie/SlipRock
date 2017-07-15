@@ -25,6 +25,7 @@ build:
 
 before_test:
   - ps: |
+      cmd /k /c "echo:alpha"
       $config = ${Env:Configuration}
       if ($config -eq 'Release') {
         $limit = 100
@@ -34,7 +35,7 @@ before_test:
       Write-Host $path
       for ($i = 0; $i -lt $limit; $i++) {
         Write-Host "Run number $i"
-        cmd /c /k "src\${config}\mytest.exe 2>&1"
+        cmd /k /c "src\${config}\mytest.exe 2>&1"
       }
 
 notifications:
