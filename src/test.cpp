@@ -219,7 +219,8 @@ BOOST_AUTO_TEST_CASE(can_create_connection) {
     struct timespec q = {1, 0};
     nanosleep(&q, nullptr);
 #else
-    Sleep(100000);
+    sliprock_trace("Calling Sleep()\n");
+    Sleep(10000000);
 #endif
     sliprock_trace("Interrupting thread\n");
     interrupt_thread(lock2, read_done, thread);
