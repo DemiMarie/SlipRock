@@ -1,8 +1,9 @@
 cd "%~dp0"
 setlocal enabledelayedexpansion
 set limit=0
-if !CONFIGURATION!=="Debug" set limit=3
-if !CONFIGURATION!=="Release" set limit=100
+echo:Config is !CONFIGURATION!
+if !CONFIGURATION!==Debug set limit=3
+if !CONFIGURATION!==Release set limit=100
 if !limit!==0 goto bad
 for /L %%x in (1, 1, !limit!) do (
    echo:Run number %%x
