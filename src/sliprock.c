@@ -252,9 +252,9 @@ int sliprock_socket(const char *const name, size_t const namelen,
    * ("connection refused") from sliprock_open() */
   if ((err = sliprock_bind_os(connection)) == 0) {
     if ((err = sliprock_bind(connection)) == 0) {
-      /* Don't leave a directory and socket lying around in /tmp */
       return 0;
     }
+    /* Don't leave a directory and socket lying around in /tmp */
     delete_socket(connection);
   }
   free(connection);
