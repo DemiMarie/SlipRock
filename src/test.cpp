@@ -66,6 +66,7 @@ bool client(char (&buf)[size], SliprockConnection *con, bool &finished,
   SliprockReceiver *receiver;
   int x = sliprock_open("dummy_valr", sizeof("dummy_val") - 1,
                         sliprock_getpid(), &receiver);
+  MADE_IT;
   BOOST_TEST(x == 0);
   BOOST_REQUIRE(x == 0);
   MADE_IT;
@@ -186,6 +187,7 @@ static void interrupt_thread(std::mutex &lock, const bool &read_done,
         std::is_same<std::thread::native_handle_type, HANDLE>::value,
         "Bad native handle type");
     CancelSynchronousIo(thread.native_handle());
+    CancelIo(thread.native_handle());
 #else
     (void)thread;
 #endif
@@ -222,15 +224,21 @@ BOOST_AUTO_TEST_CASE(can_create_connection) {
     nanosleep(&q, nullptr);
 #else
     sliprock_trace("Calling Sleep()\n");
-    Sleep(10000000);
+    Sleep(10000);
 #endif
     sliprock_trace("Interrupting thread\n");
-    interrupt_thread(lock2, read_done, thread);
-    interrupt_thread(lock, write_done, thread2);
+    for (;;) {
+      interrupt_thread(lock2, read_done, thread);
+      interrupt_thread(lock, write_done, thread2);
+#ifdef _WIN32
+      Sleep(1000);
+      ExitProcess(1);
+#endif
+    }
   }};
   thread.join();
   thread2.join();
-#ifdef _WIN32
+#if defined _WIN32 || 1
   interrupter.detach();
 #else
   interrupter.join();
