@@ -191,6 +191,8 @@ static int write_connection(OsHandle fd, struct SliprockConnection *con) {
     return -1;
   if (!FlushFileBuffers(fd))
     return -1;
+  /* FIXME there must be a better way to synchronize the directory update */
+  Sleep(10);
   return 0;
 }
 static HANDLE
@@ -304,21 +306,12 @@ fail:
   return err;
 }
 
-static DWORD sliprock_read_all(HANDLE hnd, void *buf, DWORD size,
-                               OVERLAPPED *overlapped) {
+static DWORD sliprock_read_all(HANDLE hnd, void *buf, DWORD size) {
   char *buf_ = buf;
   DWORD read;
   do {
-    if (!ReadFile(hnd, buf_, size, &read, overlapped)) {
-      if (NULL != overlapped) {
-        if (GetLastError() != ERROR_IO_PENDING)
-          break;
-        if (!GetOverlappedResult(hnd, overlapped, &read, TRUE))
-          break;
-      } else {
-        break;
-      }
-    }
+    if (!ReadFile(hnd, buf_, size, &read, NULL))
+      break;
     if (0 == read)
       break;
     if (read > size)
@@ -336,7 +329,7 @@ static ssize_t sliprock_read_receiver(OsHandle fd,
   char *buf2 = buf;
   DWORD read;
   SLIPROCK_STATIC_ASSERT(MAGIC_SIZE == sizeof SLIPROCK_MAGIC - 1);
-  read = sliprock_read_all(fd, buf, sizeof buf, NULL);
+  read = sliprock_read_all(fd, buf, sizeof buf);
   if (read != sizeof buf) {
 #ifdef SLIPROCK_TRACE
     fprintf(stderr, "Read %lu bytes - expected %Iu\n", read, sizeof buf);
@@ -356,25 +349,19 @@ SLIPROCK_API int sliprock_connect(const struct SliprockReceiver *receiver,
   int err;
   DWORD read;
   unsigned char pass[sizeof receiver->passcode];
-  OVERLAPPED overlapped;
   HANDLE hPipe = CreateFileW(
       receiver->sock, GENERIC_READ | GENERIC_WRITE,
       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
       OPEN_EXISTING,
-      SECURITY_SQOS_PRESENT | SECURITY_ANONYMOUS | FILE_FLAG_OVERLAPPED,
+      SECURITY_SQOS_PRESENT | SECURITY_ANONYMOUS,
       NULL);
   sliprock_trace("Created file\n");
-  ZeroMemory(&overlapped, sizeof overlapped);
   *handle = (SliprockHandle)INVALID_HANDLE_VALUE;
   if (INVALID_HANDLE_VALUE == hPipe)
     return SLIPROCK_EOSERR;
   sliprock_strerror();
   MADE_IT;
-  if (!(overlapped.hEvent = CreateEvent(NULL, FALSE, FALSE, NULL))) {
-    err = SLIPROCK_EOSERR;
-    goto fail;
-  }
-  if ((read = sliprock_read_all(hPipe, pass, sizeof pass, &overlapped)) !=
+  if ((read = sliprock_read_all(hPipe, pass, sizeof pass)) !=
       sizeof pass) {
 #ifdef SLIPROCK_TRACE
     sliprock_strerror();
@@ -391,12 +378,9 @@ SLIPROCK_API int sliprock_connect(const struct SliprockReceiver *receiver,
     goto fail;
   }
   *handle = (SliprockHandle)hPipe;
-  CloseHandle(overlapped.hEvent);
   return 0;
 fail:
   CloseHandle(hPipe);
-  if (NULL != overlapped.hEvent)
-    CloseHandle(overlapped.hEvent);
   return err;
 }
 #endif
