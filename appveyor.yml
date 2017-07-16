@@ -24,21 +24,25 @@ build:
   project: INSTALL.vcxproj
 
 before_test:
+  - cmd: .\test.bat
   - ps: |
-      cmd /s /c "echo:alpha"
-      $config = ${Env:Configuration}
+      if ($false) {
+      $config = ${Env:CONFIGURATION}
       if ($config -eq 'Release') {
         $limit = 100
-      } else {
+      } elseif ($config -eq 'Debug') {
         $limit = 3
+      } else {
+        throw 'Error: bad value for $Env:CONFIGURATION'
       }
       Write-Host $path
       for ($i = 0; $i -lt $limit; $i++) {
         Write-Host "Run number $i"
-        cmd /s /c "src\${config}\mytest.exe 2>&1"
+        cmd /v:on /s /c "src\!CONFIGURATION!\mytest.exe 2>&1"
         if ($? -eq 0) {
           throw "Error: command failed with exit code $?"
         }
+      }
       }
 
 notifications:
