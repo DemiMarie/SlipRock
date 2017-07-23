@@ -17,7 +17,8 @@ environment:
 
 before_build:
   - >-
-    cmake . -G "Visual Studio 14 2015 Win64" -DCMAKE_INSTALL_PREFIX=C:\Projects\libs
+    cmake . -G "Visual Studio 14 2015 Win64"
+    -DCMAKE_INSTALL_PREFIX=C:\Projects\libs
     "-DCMAKE_BUILD_TYPE=%CONFIGURATION%" -DBOOST_ROOT=C:\Libraries\boost_1_63_0
     "-DSLIPROCK_TRACE=%CONFIGURATION%"
 
@@ -25,28 +26,8 @@ build:
   project: INSTALL.vcxproj
 
 before_test:
-  - cmd: .\test.bat
-  - ps: |
-      if ($false) {
-      $config = ${Env:CONFIGURATION}
-      if ($config -eq 'Release') {
-        $limit = 100
-      } elseif ($config -eq 'Debug') {
-        $limit = 3
-      } else {
-        throw 'Error: bad value for $Env:CONFIGURATION'
-      }
-      Write-Host $path
-      for ($i = 0; $i -lt $limit; $i++) {
-        Write-Host "Run number $i"
-        cmd /v:on /s /c "src\!CONFIGURATION!\mytest.exe 2>&1"
-        if ($? -eq 0) {
-          throw "Error: command failed with exit code $?"
-        }
-      }
-      }
+  - 'cmd /v:on /s /c ".\test.bat"'
 
 notifications:
   - provider: Email
-    to:
-      - demiobenour@gmail.com
+    to: demiobenour@gmail.com
