@@ -2,7 +2,9 @@
 #include <assert.h>
 #include <sliprock_windows.h>
 #include <string.h>
-typedef struct { char address[6]; } con_info;
+typedef struct {
+  char address[6];
+} con_info;
 #ifndef STATUS_SUCCESS
 #define STATUS_SUCCESS 0
 #endif

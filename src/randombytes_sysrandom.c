@@ -206,7 +206,7 @@ randombytes_sysrandom_random_dev_open(void) {
 #else
           S_ISCHR(st.st_mode)
 #endif
-          ) {
+      ) {
 #if defined(F_SETFD) && defined(FD_CLOEXEC)
         (void)fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC);
 #endif

@@ -48,7 +48,9 @@ static inline void StringBuf_init(struct StringBuf *buf,
   assert(buf_capacity < 65535);
   assert(buf_length <= buf_capacity);
   struct StringBuf buf_ = {
-      buf_ptr, (uint16_t)buf_capacity, (uint16_t)buf_length,
+      buf_ptr,
+      (uint16_t)buf_capacity,
+      (uint16_t)buf_length,
   };
   memcpy(buf, &buf_, sizeof buf_);
 }
@@ -62,7 +64,9 @@ StringBuf_alloc(size_t const buf_capacity, struct StringBuf *const buf) {
   if (NULL == val)
     return -1;
   struct StringBuf retval = {
-      val, (uint16_t)buf_capacity, 0,
+      val,
+      (uint16_t)buf_capacity,
+      0,
   };
   memcpy(buf, &retval, sizeof retval);
   return 0;

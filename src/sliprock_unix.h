@@ -251,11 +251,10 @@ static int write_connection(OsHandle fd, struct SliprockConnection *con) {
       {con->passwd, sizeof con->passwd},
       {&con->address.sun_path, MAX_SOCK_LEN},
   };
-  int q =
-      writev(fd, vec, 3) ==
-              MAX_SOCK_LEN + sizeof con->passwd + sizeof SLIPROCK_MAGIC - 1
-          ? 0
-          : -1;
+  int q = writev(fd, vec, 3) == MAX_SOCK_LEN + sizeof con->passwd +
+                                    sizeof SLIPROCK_MAGIC - 1
+              ? 0
+              : -1;
   return q;
 }
 
