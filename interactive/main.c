@@ -81,17 +81,19 @@ static void *do_copy(void *arg) {
     ssize_t offset = 0;
     ssize_t write_res;
     if (res < 0)
-      fail("read");
+      goto done;
     for (;;) {
       write_res = write(dst, buf + offset, (size_t)(res - offset));
       if (write_res < 0)
-        fail("write");
+        goto done;
       if (res - offset <= write_res)
         break;
       offset += write_res;
     }
   }
+done:
   shutdown(dst, SHUT_WR);
+  shutdown(src, SHUT_RD);
   return NULL;
 }
 static void copy_fds(int fd) {

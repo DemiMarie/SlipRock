@@ -5,7 +5,7 @@ set errorlevel=
 set limit=
 if !CONFIGURATION!==Debug set limit=3
 if !CONFIGURATION!==Release set limit=100
-if !limit!==0 goto bad
+if not defined limit goto bad
 if not !errorlevel!==0 goto bad
 echo.Config is !CONFIGURATION!
 for /L %%x in (1, 1, !limit!) do (
