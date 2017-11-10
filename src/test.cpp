@@ -193,6 +193,25 @@ static void interrupt_thread(std::mutex &lock, const bool &read_done,
 #endif
   }
 }
+
+#ifdef _WIN32
+BOOST_AUTO_TEST_CASE(windows_path_names) {
+   std::vector<wchar_t> buf(100, 0);
+   const wchar_t oldname[] = L"C:\\alpha \\beta. \\a";
+   for (;;) {
+      DWORD retval = GetFullPathNameW(oldname, buf.size(), buf.data(), nullptr);
+      BOOST_ASSERT(0 < retval);
+      if (retval < buf.size()) {
+         buf.resize(retval + 1);
+         break;
+      }
+      buf.resize(retval);
+   }
+   BOOST_ASSERT(buf.size() == sizeof(oldname)/sizeof(oldname[0]));
+   BOOST_TEST(wcscmp(buf.data(), oldname) == 0);
+}
+#endif
+
 BOOST_AUTO_TEST_CASE(can_create_connection) {
 #ifndef _WIN32
   struct sigaction sigact;
