@@ -19,7 +19,7 @@
 /* Taken from libsodium */
 
 #ifdef _MSC_VER
-#define __attribute__(x) syntax error !
+#define __attribute__(x)
 #endif
 /* From utils.h */
 #ifndef SODIUM_C99
@@ -70,9 +70,6 @@ randombytes_sysrandom_stir_if_needed(void);
 #endif
 #include <poll.h>
 #endif
-
-//#include "randombytes.h"
-//#include "utils.h"
 
 #ifdef _WIN32
 /* `RtlGenRandom` is used over `CryptGenRandom` on Microsoft Windows based
@@ -312,7 +309,7 @@ static void init_libsodium(void) {
   is_initialized = randombytes_sysrandom_stir_if_needed();
 }
 
-// Initialize libsodium
+/* Initialize libsodium */
 static int init_func(void) {
 #ifndef SLIPROCK_NO_THREADS
   int initialized = pthread_once(&once, &init_libsodium);

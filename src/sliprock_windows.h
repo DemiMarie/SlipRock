@@ -1,5 +1,5 @@
-// Tiny Windows implementation of a reasonable platform abstraction
-// layer.
+/* Tiny Windows implementation of a reasonable platform abstraction
+ * layer. */
 
 #ifndef SLIPROCK_WINDOWS_H_INCLUDED
 #define SLIPROCK_WINDOWS_H_INCLUDED SLIPROCK_WINDOWS_H_INCLUDED
@@ -31,6 +31,9 @@ typedef HANDLE OsHandle;
 #define O_RDWR 3
 #define O_RDONLY 2
 #define O_WRONLY 1
+
+/* Tracing function, for debugging. */
+
 #ifdef SLIPROCK_TRACE
 static void sliprock_strerror(void) {
   wchar_t *buf;
@@ -53,7 +56,6 @@ static void sliprock_strerror(void) {
       free(bytebuf);
     }
   }
-// WriteFile(GetStdHandle(-12), buf, buflen, &dummy, NULL);
 done:
   LocalFree(buf);
 }
@@ -64,8 +66,7 @@ static void sliprock_strerror(void) {}
 static OsHandle openfile(MyChar *path, int mode) {
   int osmode = 0;
   int creation_mode = OPEN_EXISTING;
-  SECURITY_ATTRIBUTES sec;
-  ZeroMemory(&sec, sizeof sec);
+  SECURITY_ATTRIBUTES sec = {0};
   sec.nLength = sizeof sec;
   assert(mode && mode < 4);
   if (mode & 2)
@@ -83,7 +84,8 @@ static OsHandle openfile(MyChar *path, int mode) {
 #endif
   return h;
 }
-// Taken from Wine
+
+/* Taken from Wine */
 #define GetCurrentProcessToken() ((HANDLE) ~(ULONG_PTR)3)
 #define snprintf _wsnprintf
 #define CON_PATH(con) ((con)->pipename)
@@ -114,12 +116,12 @@ static int sliprock_get_home_directory(void **const freeptr,
 }
 
 static OsHandle create_directory_and_file(struct StringBuf *path) {
-  for (size_t i = path->buf_length; i > 0;) {
+  size_t i;
+  for (i = path->buf_length; i > 0;) {
     --i;
     if (L'\\' == path->buf[i] || L'/' == path->buf[i]) {
       path->buf[i] = 0;
-      SECURITY_ATTRIBUTES sec;
-      ZeroMemory(&sec, sizeof sec);
+      SECURITY_ATTRIBUTES sec = {0};
       sec.nLength = sizeof sec;
       fwprintf_s(stderr, L"%s\n", path->buf);
       if (!CreateDirectoryW(path->buf, &sec) &&
@@ -131,22 +133,12 @@ static OsHandle create_directory_and_file(struct StringBuf *path) {
       return openfile(path->buf, O_WRONLY);
     }
   }
-  abort(); // impossible
+  abort(); /* impossible */
 }
 
 static int sliprock_fsync(OsHandle fd) {
   return FlushFileBuffers(fd) ? 0 : -1;
 }
-
-#if 0
-static int get_errno(void) {
-   return GetLastError();
-}
-static int set_errno(DWORD err) {
-   SetLastError(err);
-   return err;
-}
-#endif
 
 #define SOCK_CLOEXEC 0 /* not needed */
 
@@ -195,16 +187,11 @@ static int write_connection(OsHandle fd, struct SliprockConnection *con) {
 }
 static HANDLE
 sliprock_get_handle_for_connection(struct SliprockConnection *connection) {
-  SECURITY_ATTRIBUTES sec_attributes;
+  SECURITY_ATTRIBUTES sec_attributes = {0};
   HANDLE hPipe = connection->hPipe;
   DWORD err = connection->lastError;
-  /* Can't hurt.  Might help (IIRC several Windows API structs must be
-   * zeroed).
-   */
-  ZeroMemory(&sec_attributes, sizeof sec_attributes);
 
   sec_attributes.nLength = sizeof sec_attributes;
-  sec_attributes.bInheritHandle = 0; /* not necessary – already zeroed */
   SetLastError(0);
   connection->hPipe = CreateNamedPipeW(
       connection->pipename,
@@ -218,16 +205,21 @@ sliprock_get_handle_for_connection(struct SliprockConnection *connection) {
   SetLastError(err);
   return hPipe;
 }
+
+/*
+ * Bind a connection to a named pipe
+ */
 static int sliprock_bind_os(struct SliprockConnection *connection) {
   uint64_t random[1];
+  int res;
 retry:
   if (sliprock_randombytes_sysrandom_buf(random, sizeof random) < 0)
     return -1;
   assert(connection->pipename);
-  int res = swprintf_s(connection->pipename,
-                       sizeof connection->pipename / sizeof(wchar_t),
-                       L"\\\\?\\pipe\\SlipRock\\%d\\%I64x",
-                       GetCurrentProcessId(), random[0]);
+  res = swprintf_s(connection->pipename,
+                   sizeof connection->pipename / sizeof(wchar_t),
+                   L"\\\\?\\pipe\\SlipRock\\%d-%I64x",
+                   GetCurrentProcessId(), random[0]);
   if (res == -1) {
     assert(0);
     abort();
@@ -247,7 +239,7 @@ SLIPROCK_API int sliprock_accept(struct SliprockConnection *connection,
                                  SliprockHandle *handle) {
   /*
    * It is absolutely imperative that there be ONLY ONE instance of the
-   * named pipe open but not connected when ConnectNamedPipe() is called.
+   * named pipe open but not connected when CreateNamedPipe() is called.
    * Otherwise, Windows will pick an arbitrary one.  This causes
    * ConnectNamedPipe() to hang intermittently, causing problems that are
    * terribly difficult to debug!
@@ -277,9 +269,7 @@ SLIPROCK_API int sliprock_accept(struct SliprockConnection *connection,
   }
   sliprock_trace("ConnectNamedPipe() succeeded\n");
   sliprock_get_handle_for_connection(connection);
-  MADE_IT;
   while (1) {
-    MADE_IT;
     sliprock_trace("About to write to pipe\n");
     if (WriteFile(hPipe, connection->passwd + written,
                   sizeof connection->passwd - written, &written_this_time,
@@ -290,14 +280,12 @@ SLIPROCK_API int sliprock_accept(struct SliprockConnection *connection,
       goto fail;
     }
     sliprock_trace("Write to pipe succeeded\n");
-    MADE_IT;
     if (FlushFileBuffers(hPipe) == 0) {
       sliprock_strerror();
       sliprock_trace("FlushFileBuffers() failed\n");
       err = SLIPROCK_EOSERR;
       goto fail;
     }
-    MADE_IT;
     assert(written_this_time <= sizeof connection->passwd - written);
     written += written_this_time;
     if (written == sizeof connection->passwd) {
@@ -305,7 +293,6 @@ SLIPROCK_API int sliprock_accept(struct SliprockConnection *connection,
       FlushFileBuffers(hPipe);
       return 0;
     }
-    MADE_IT;
     if (written == 0) {
       err = SLIPROCK_EPROTO;
       goto fail;
@@ -313,7 +300,6 @@ SLIPROCK_API int sliprock_accept(struct SliprockConnection *connection,
   }
 fail:
   CloseHandle(hPipe);
-  MADE_IT;
   return err;
 }
 
@@ -321,10 +307,8 @@ static DWORD sliprock_read_all(HANDLE hnd, void *buf, DWORD size) {
   char *buf_ = buf;
   DWORD read;
   do {
-    MADE_IT;
     if (!ReadFile(hnd, buf_, size, &read, NULL))
       break;
-    MADE_IT;
     if (0 == read)
       break;
     if (read > size)
@@ -344,7 +328,6 @@ static ssize_t sliprock_read_receiver(OsHandle fd,
   SLIPROCK_STATIC_ASSERT(MAGIC_SIZE == sizeof SLIPROCK_MAGIC - 1);
   read = sliprock_read_all(fd, buf, sizeof buf);
   sliprock_trace("Read from connection file\n");
-  MADE_IT;
   if (read != sizeof buf) {
 #ifdef SLIPROCK_TRACE
     fprintf(stderr, "Read %lu bytes - expected %Iu\n", read, sizeof buf);
@@ -373,7 +356,6 @@ SLIPROCK_API int sliprock_connect(const struct SliprockReceiver *receiver,
   if (INVALID_HANDLE_VALUE == hPipe)
     return SLIPROCK_EOSERR;
   sliprock_strerror();
-  MADE_IT;
   sliprock_trace("About to read from pipe\n");
   if ((read = sliprock_read_all(hPipe, pass, sizeof pass)) !=
       sizeof pass) {

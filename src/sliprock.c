@@ -43,8 +43,8 @@ SLIPROCK_API void sliprock_close(struct SliprockConnection *connection) {
   if (NULL == connection) {
     return;
   }
-  // not true in the presence of sliprock_UNSAFEgetRawHandle
-  // assert(connection->fd.fd >= 0);
+  /* not true in the presence of sliprock_UNSAFEgetRawHandle */
+  /* assert(connection->fd.fd >= 0); */
   if (NULL != connection->path.buf) {
     sliprock_unlink(connection->path.buf);
     free((void *)connection->path.buf);
@@ -76,7 +76,7 @@ static int sliprock_new(const char *const name, const size_t namelen,
 #ifndef _WIN32
   connection->address.sun_family = AF_UNIX;
 #endif
-  // We have (by construction) enough space for the name
+  /* We have (by construction) enough space for the name */
   memcpy(&connection->name, name, namelen);
   connection->namelen = namelen;
 
@@ -84,7 +84,7 @@ static int sliprock_new(const char *const name, const size_t namelen,
 }
 
 static int sliprock_check_charset(const char *name, size_t namelen) {
-  // TODO allow unicode
+  /* TODO allow unicode */
   size_t i;
   for (i = 0; i < namelen; ++i) {
     if (!isalnum(name[i]) && name[i] != '-' && name[i] != '.' &&
@@ -206,8 +206,7 @@ static int sliprock_bind(struct SliprockConnection *con) {
     goto fail;
   if (hclose(fd) < 0) {
     /* Don't double-close – the state of the FD is unspecified.  Better
-     * to
-     * leak an FD than close an FD that other code could be using. */
+     * to leak an FD than close an FD that other code could be using. */
     fd = (OsHandle)INVALID_HANDLE_VALUE;
     goto fail;
   }
@@ -261,23 +260,34 @@ int sliprock_socket(const char *const name, size_t const namelen,
   return err;
 }
 
-// See documentation in sliprock.h
+/* See documentation in sliprock.h */
 SLIPROCK_API void
 sliprock_close_receiver(struct SliprockReceiver *receiver) {
   free(receiver);
 }
 
-// See documentation in sliprock.h
+static int check_receiver(OsHandle fd, struct SliprockReceiver *receiver) {
+  char magic[sizeof(SLIPROCK_MAGIC) - 1] = {0};
+  int res = (int)sliprock_read_receiver(fd, receiver, magic);
+  static const ssize_t size =
+      (sizeof SLIPROCK_MAGIC - 1) + 32 + sizeof(TCHAR) * MAX_SOCK_LEN;
+  if (res != size)
+    return res >= 0 ? SLIPROCK_EPROTO : SLIPROCK_EOSERR;
+  else {
+    int cmp = memcmp(magic, SLIPROCK_MAGIC, sizeof SLIPROCK_MAGIC - 1);
+    return cmp ? SLIPROCK_EPROTO : 0;
+  }
+}
+
+/* See documentation in sliprock.h */
 SLIPROCK_API int sliprock_open(const char *const identifier, size_t size,
                                uint32_t pid,
                                struct SliprockReceiver **receiver) {
   int err = SLIPROCK_EINTERNALERROR;
   OsHandle fd;
-  struct StringBuf fname;
+  struct StringBuf fname = {0};
   assert(receiver);
   *receiver = NULL;
-  memset(&fname, 0, sizeof fname);
-  char magic[sizeof(SLIPROCK_MAGIC) - 1];
   if ((err = sliprock_check_charset(identifier, size)))
     return err;
 #ifndef _WIN32
@@ -301,20 +311,7 @@ SLIPROCK_API int sliprock_open(const char *const identifier, size_t size,
     err = SLIPROCK_ENOMEM;
     goto fail;
   }
-  MADE_IT;
-  int res = (int)sliprock_read_receiver(fd, *receiver, magic);
-  if (res !=
-      (sizeof SLIPROCK_MAGIC - 1) + 32 + sizeof(TCHAR) * MAX_SOCK_LEN) {
-    if (res >= 0) {
-      MADE_IT;
-      err = SLIPROCK_EPROTO;
-    } else {
-      MADE_IT;
-      err = SLIPROCK_EOSERR;
-    }
-  } else if (!err &&
-             memcmp(magic, SLIPROCK_MAGIC, sizeof SLIPROCK_MAGIC - 1))
-    err = SLIPROCK_EPROTO;
+  check_receiver(fd, *receiver);
 fail:
   if ((OsHandle)INVALID_HANDLE_VALUE != fd)
     hclose(fd);

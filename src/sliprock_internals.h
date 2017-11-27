@@ -50,7 +50,7 @@ typedef int OsHandle;
 #include "stringbuf.h"
 
 #ifdef _WIN32
-#define MAX_SOCK_LEN (sizeof "\\\\?\\pipe\\SlipRock\\4294967295\\" + 16)
+#define MAX_SOCK_LEN (sizeof "\\\\?\\pipe\\SlipRock\\4294967295-" + 16)
 #endif
 /* The actual connection struct */
 struct SliprockConnection {
