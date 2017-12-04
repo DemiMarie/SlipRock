@@ -73,9 +73,8 @@ SLIPROCK_API int sliprock_accept(struct SliprockConnection *connection,
 
   memset(&_dummy, 0, sizeof(_dummy));
   assert(-1 != connection->fd);
-#if defined __linux__ || \
-  (defined __FreeBSD__ && __FreeBSD__ >= 10) || \
-  (defined __NetBSD__ && __NetBSD__ >= 8)
+#if defined __linux__ || (defined __FreeBSD__ && __FreeBSD__ >= 10) ||    \
+    (defined __NetBSD__ && __NetBSD__ >= 8)
   fd = accept4(connection->fd, &_dummy, &_dummy2, SOCK_CLOEXEC);
   *handle = (SliprockHandle)fd;
   if (fd < 0)
@@ -112,8 +111,8 @@ int sliprock_bind_os(struct SliprockConnection *connection) {
   connection->fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
   if (connection->fd >= 0) {
 
-  /* Set close-on-exec if it could not have been done atomically. */
 #ifdef SLIPROCK_NO_SOCK_CLOEXEC
+    /* Set close-on-exec if it could not have been done atomically. */
     sliprock_set_cloexec(connection->fd);
 #endif
 
@@ -131,11 +130,13 @@ int sliprock_bind_os(struct SliprockConnection *connection) {
   return -1;
 }
 
-/* Get the user's home directory.  A void* will be placed in freeptr
+/**
+ * Get the user's home directory.  A void* will be placed in freeptr
  * that must be passed to free(3) when needed.  Doing so invalidates
  * the returned pointer.
  *
- * On error, returns NULL and set errno. */
+ * On error, returns NULL and set errno.
+ */
 static int sliprock_get_home_directory(void **freeptr,
                                        const char **homedir) {
   int e;
@@ -368,5 +369,80 @@ int sliprock_connect(const struct SliprockReceiver *receiver,
   hclose(sock);
   return SLIPROCK_EPROTO;
 }
+#if 0
+typedef int (*SlipRockAsyncReadCont)(void *opaque, OsHandle hnd, void *buf,
+                                     ssize_t size);
+typedef int (*SlipRockAsyncReadCB)(void *user, void *opaque, OsHandle hnd,
+                                   void *buf, ssize_t size,
+                                   SlipRockAsyncReadCont cont);
+
+typedef int (*SlipRockCopyCB)(void *user, size_t size);
+struct SlipRockAsyncBuf {
+  OsHandle in, out;
+  void *user;
+  SlipRockCopyCb cb;
+  size_t start, end;
+  bool is_reading;
+  char buf[2048];
+};
+
+static int async_copy(void *user, OsHandle in, OsHandle out,
+                      SlipRockCopyCB cb) {
+  struct SlipRockAsyncBuf *ptr = calloc(1, sizeof(struct SlipRockAsyncBuf));
+  if (NULL == ptr)
+    return -ENOMEM;
+  ptr->in = in, ptr->out = out, ptr->start = ptr->end = 0, ptr->user = user,
+  ptr->cb = cb;
+  ptr->is_reading = true;
+  return async_read(user, ptr, in, &ptr->buf, sizeof ptr->buf, async_copy_cont);
+}
+static int async_copy_cont(void *opaque, OsHandle hnd, void *buf,
+                           ssize_t size) {
+  struct SlipRockAsyncBuf *data = (struct SlipRockAsyncBuf *)opaque;
+  assert(&data->buf == buf);
+  if (size <= 0) {
+    SlipRockCopyCb cb = data->cb;
+    void *user = data->user;
+    ssize_t left_in_buf = data->end - data->start;
+    assert(left_in_buf >= 0);
+    free(data);
+    return cb(user, size, left_in_buf);
+  }
+  assert(size < sizeof data->buf);
+  if (buf->is_reading) {
+    /* Assert we didn't have a buffer overflow */
+    assert(sizeof(data->buf) - (size_t)size >= data->end);
+    buf->end += (size_t)size;
+    assert(buf->end <= sizeof(data->buf));
+    if (sizeof(data->buf) <= buf->end) {
+      /* Done reading - time to write */
+    write:
+      buf->is_reading = false;
+      return async_write(buf->user, (void *)buf, buf->out, &buf->buf,
+                         sizeof(data->buf), async_copy_cont);
+    } else {
+      /* Time to read! */
+    read:
+      buf->is_reading = true;
+      return async_read(buf->user, (void *)buf, buf->in, &buf->buf,
+                        sizeof(data->buf), async_copy_cont);
+    }
+  } else {
+    /* Assert no buffer overflow */
+    assert(buf->end - size >= buf->start);
+    assert(sizeof(data->buf) == buf->end);
+
+    /* Update start cursor */
+    buf->start += (size_t)size;
+    if (buf->start >= buf->end) {
+      /* Time to switch to reads */
+      buf->start = buf->end = 0;
+      goto read;
+    } else {
+      goto write;
+    }
+  }
+}
+#endif
 #define UNIX_CONST const
 #endif

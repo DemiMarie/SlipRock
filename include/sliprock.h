@@ -211,6 +211,8 @@ SLIPROCK_API SliprockHandle sliprock_UNSAFEgetRawHandle(
  * If an OS handle is retrieved using sliprock_UNSAFEgetRawHandle(), the bytes
  * pointed to by this **MUST** be the first thing written to any handles created
  * from the OS handle.
+ *
+ * @return the pointer to the passphrase.
  */
 SLIPROCK_API const unsigned char *
 sliprock_UNSAFEgetPasscode(const struct SliprockConnection *connection);
@@ -223,9 +225,11 @@ sliprock_UNSAFEgetPasscode(const struct SliprockConnection *connection);
 #warning dont know how to tell the compiler not to inline this
 #define SLIPROCK_NOINLINE
 #endif
+
 /**
- * Compare two byte sequences in constant time.  Return -1 if they are equal, or
- * -1 otherwise.
+ * Compare two byte sequences in constant time.
+ *
+ * @return -1 if they are equal, or -1 otherwise.
  */
 SLIPROCK_NOINLINE int
 sliprock_secure_compare_memory(const volatile unsigned char *const buf1,
@@ -238,12 +242,41 @@ sliprock_secure_compare_memory(const volatile unsigned char *const buf1,
 #define SLIPROCK_WARN_UNUSED_RESULT /* nothing */
 #endif
 
-/* Cryptographic random number generation */
+/**
+ * Cryptographic random number generation.
+ *
+ * @return 0 on success, or -1 on error.
+ */
 SLIPROCK_WARN_UNUSED_RESULT int
 sliprock_randombytes_sysrandom_buf(void *const buf, const size_t size);
 
 #if 0
-{ /* make emacs happy */
+/**
+ * Async accept callback.
+ *
+ * Must be called by SlipRockAsyncAccept().
+ */
+
+
+/**
+ * Accept async function.
+ *
+ * On Unix-like systems, it is expected that the returned FD will be close-on-exec.
+ */
+typedef int (*SlipRockAsyncAccept)(OsHandle fd, void *opaque);
+
+/**
+ * Asynchronous I/O support.
+ *
+ * This struct must be provided to enable asynchronous I/O in SlipRock.
+ * If it is not provided, synchronous I/O will be used.
+ *
+ * Note that filesystem I/O is never asynchronous in SlipRock.  Therefore,
+ * operations that involve it should not be performed on event loop threads.
+ */
+struct SlipRockAsyncIO {
+
+ /* make emacs happy */
 #elif defined __cplusplus
 }
 #endif
