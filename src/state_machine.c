@@ -1,17 +1,17 @@
+#define CHALLENGE_BYTES 32
+#define RESPONSE_BYTES 32
+#define HANDSHAKE_BYTES (CHALLENGE_BYTES + RESPONSE_BYTES)
 
 typedef uint64_t key[4];
 struct connection {
   const char magic[16];
-  key key, challenge_sent, challenge_received, response_sent,
-      response_received;
+  key key;
+  char send_buf[HANDSHAKE_BYTES], receive_buf[HANDSHAKE_BYTES];
   int status;
   bool received_challenge;
   uint8_t received, sent, to_send;
 };
 
-#define CHALLENGE_BYTES 32
-#define RESPONSE_BYTES 32
-#define HANDSHAKE_BYTES (CHALLENGE_BYTES + RESPONSE_BYTES)
 static int on_receive(struct connection *con, size_t size) {
   int err = -EFAULT;
   /* Did we receive too many bytes? */
@@ -59,7 +59,8 @@ static int sliprock_on_receive(struct connection *con, size_t bytes) {
   err = on_receive(con, bytes);
   if (err) {
     con->status = err;
-    con->to_send = 0;
+    /* This is wrong because it could trip an assert in on_send */
+    /* con->to_send = 0; */
     return err;
   } else {
     return 0;
@@ -71,7 +72,7 @@ static int on_send(struct connection *con, size_t size) {
   ASSERT(con->sent <= HANDSHAKE_BYTES);
   if (size > con->to_send) {
     assert(!"Sent data before it was ready!");
-    abort();
+    return -EPROTO;
   }
   con->sent += size;
   con->to_send -= size;
