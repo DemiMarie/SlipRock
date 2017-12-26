@@ -1,18 +1,5 @@
-#define CHALLENGE_BYTES 32
-#define RESPONSE_BYTES 32
-#define HANDSHAKE_BYTES (CHALLENGE_BYTES + RESPONSE_BYTES)
-
-typedef uint64_t key[4];
-struct connection {
-  const char magic[16];
-  key key;
-  char send_buf[HANDSHAKE_BYTES], receive_buf[HANDSHAKE_BYTES];
-  int status;
-  bool received_challenge;
-  uint8_t received, sent, to_send;
-};
-
-static int on_receive(struct connection *con, size_t size) {
+static int on_receive(struct sliprock_pending_connection *con,
+                      size_t size) {
   int err = -EFAULT;
   /* Did we receive too many bytes? */
   if (con->received > HANDSHAKE_BYTES) {
@@ -51,9 +38,11 @@ static int on_receive(struct connection *con, size_t size) {
       return 0;
     }
   }
+  return 0;
 }
 
-static int sliprock_on_receive(struct connection *con, size_t bytes) {
+static int sliprock_on_receive(struct sliprock_pending_connection *con,
+                               size_t bytes) {
   int err;
   assert(NULL != con);
   err = on_receive(con, bytes);
@@ -67,7 +56,19 @@ static int sliprock_on_receive(struct connection *con, size_t bytes) {
   }
 }
 
-static int on_send(struct connection *con, size_t size) {
+SLIPROCK_API int sliprock_on_send(struct sliprock_pending_connection *con,
+                                  size_t size) {
+  return sliprock__on_send(con, size);
+}
+
+bool sliprock__connection_is_good(
+    struct sliprock_pending_connection *con) {
+  return con->good && HANDSHAKE_BYTES == con->sent &&
+         HANDSHAKE_BYTES == con->received;
+}
+
+int sliprock__on_send(struct sliprock_pending_connection *con,
+                      size_t size) {
   ASSERT(con);
   ASSERT(con->sent <= HANDSHAKE_BYTES);
   if (size > con->to_send) {
