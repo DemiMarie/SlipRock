@@ -1,21 +1,11 @@
-#ifdef _WIN32
 #define SLIPROCK_INTERNALS
+#ifdef _WIN32
 #define _UNICODE
 #define UNICODE
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
-#endif
-#ifdef __linux__
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wreserved-id-macro"
-#endif
-#define _GNU_SOURCE
-#ifdef __clang__
-#pragma clang diagnostic pop
-#endif
 #endif
 #include <stdint.h>
 

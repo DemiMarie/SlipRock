@@ -1,7 +1,10 @@
 #include "sliprock_poll.h"
+#ifndef _WIN32
+#include <fcntl.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#endif
 
-typedef ssize_t (*fill_buf_cb)(sliprock_socket_t fd, char *buf,
-                               size_t size);
 #ifndef MSG_NONBLOCK
 #define MSG_NONBLOCK 0
 #endif
@@ -14,15 +17,16 @@ static ssize_t errno_to_retval(ssize_t retval) {
  * Performs a single read from a socket, and updates the connection
  * accordingly.
  */
-static sliprock__receive_once(struct sliprock_pending_connection *con,
-                              sliprock_socket_t fd) {
+static ssize_t
+sliprock__receive_once(struct sliprock_pending_connection *con,
+                       sliprock_socket_t fd) {
   ssize_t res;
-  res = errno_to_retval(recv(fd, con->receive_buf + con->received,
-                             sizeof(con->receive_buf) - con->received,
+  res = errno_to_retval(recv(fd, con->receive_buffer + con->received,
+                             sizeof(con->receive_buffer) - con->received,
                              MSG_DONTWAIT));
   if (res > 0)
     sliprock__on_receive(con, (size_t)res);
-  return res;
+  return res < 0 ? res : 0;
 }
 
 /**
@@ -34,17 +38,18 @@ static ssize_t sliprock__receive(struct sliprock_pending_connection *con,
   ssize_t res;
   do {
     res = sliprock__receive_once(con, fd);
-  } while (res > 0 && con->received < sizeof(con->receive_buf));
+  } while (res > 0 && con->received < sizeof(con->receive_buffer));
+  return res;
 }
 
 /**
  * Performs a single send operation on a socket, and updates the connection
  * accordingly.
  */
-static sliprock__send_once(struct sliprock_pending_connection *con,
-                           sliprock_socket_t fd) {
+static ssize_t sliprock__send_once(struct sliprock_pending_connection *con,
+                                   sliprock_socket_t fd) {
   ssize_t res = errno_to_retval(
-      send(fd, con->send_buf + con->sent, con->to_send, MSG_DONTWAIT));
+      send(fd, con->send_buffer + con->sent, con->to_send, MSG_DONTWAIT));
   if (res > 0)
     sliprock__on_send(con, (size_t)res);
   return res;
@@ -53,12 +58,13 @@ static sliprock__send_once(struct sliprock_pending_connection *con,
 /**
  * Retrys sending until an error occurs.
  */
-static sliprock__send(struct sliprock_pending_connection *con,
-                      sliprock_socket_t fd) {
+static ssize_t sliprock__send(struct sliprock_pending_connection *con,
+                              sliprock_socket_t fd) {
   ssize_t res;
   do {
     res = sliprock__send_once(con, fd);
   } while (res > 0 && con->to_send);
+  return res < 0 ? res : 0;
 }
 
 /**
@@ -68,7 +74,9 @@ static bool do_retry(ssize_t val) {
   switch (val) {
   case -EINTR:
   case -EAGAIN:
+#if EAGAIN != EWOULDBLOCK
   case -EWOULDBLOCK:
+#endif
     return true;
   default:
     return val > 0;
@@ -79,17 +87,14 @@ SLIPROCK_API int sliprock_on_poll(short events,
                                   struct sliprock_pending_connection *conn,
                                   sliprock_socket_t fd) {
   ssize_t res = 0;
-  int errno_res = 0;
   errno = 0;
-  if (events & POLLOUT) {
+  if (events & POLLIN) {
     res = sliprock__receive(conn, fd);
-    assert(res);
     if (!do_retry(res))
       return res;
   }
-  if (events & POLLIN)
+  if (events & POLLOUT)
     res = sliprock__send(conn, fd);
-  assert(res);
   return res;
 }
 
@@ -99,24 +104,29 @@ SLIPROCK_API int sliprock_on_poll(short events,
 int sliprock__poll(struct sliprock_pending_connection *conn,
                    sliprock_socket_t fd, int timeout) {
   sliprock_poll_fd p = {fd, SLIPROCK_POLL_FLAGS, 0};
+#ifndef _WIN32
+  fcntl(fd, F_SETFL, O_NONBLOCK);
+#endif
   for (;;) {
-    int res = SLIPROCK_POLL(&p, 1, timeout);
+    int res;
+    if (!conn->to_send && 0)
+      p.events &= ~POLLOUT;
+    res = SLIPROCK_POLL(&p, 1, timeout);
     if (res < 0)
       return -errno;
     else if (!res)
       return -ETIMEDOUT;
     else {
       assert(1 == res);
-      if (p.events & POLLERR)
+      if (p.revents & POLLERR)
         return -ECONNRESET;
       else {
-        res = sliprock_on_poll(p.events);
-        assert(res);
+        res = sliprock_on_poll(p.revents, conn, fd);
         if (!do_retry(res))
           return res;
         if (sliprock__connection_is_good(conn))
           return 0;
-        if (con->status)
+        if (conn->status)
           return -EPROTO;
       }
     }

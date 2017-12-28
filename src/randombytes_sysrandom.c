@@ -329,7 +329,7 @@ static int init_func(void) {
 #endif
 #if 0
 static int
-psliprock_randombytes_sysrandom_close(void)
+sliprock_randombytes_sysrandom_close(void)
 {
     int ret = -1;
 

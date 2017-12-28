@@ -26,7 +26,8 @@ trap 'rm -rf -- "$tmpdir"' EXIT
 cd -- "$tmpdir"
 if [[ $target = unix ]]; then
    run_with_checks () {
-      scan-build $(awk -f "$mydir/getbuild.awk") "$@"
+      #scan-build $(awk -f "$mydir/getbuild.awk") "$@"
+      "$@"
    }
 else
    for i in C CXX; do

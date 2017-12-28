@@ -1,17 +1,8 @@
 #ifndef SLIPROCK_UNIX_H_INCLUDED
 #define SLIPROCK_UNIX_H_INCLUDED
-#ifdef __linux__
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wreserved-id-macro"
-#endif
-#define _GNU_SOURCE
-#ifdef __clang__
-#pragma clang diagnostic pop
-#endif
-#endif
 #include <errno.h>
 #include <fcntl.h>
+#include <unistd.h>
 
 #include <assert.h>
 #include <fcntl.h>
@@ -26,6 +17,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+#include "sliprock_poll.h"
 #include <include/sliprock.h>
 #include <src/sliprock_internals.h>
 #include <src/stringbuf.h>
@@ -65,16 +57,19 @@ int sliprock_bind_os(struct SliprockConnection *connection);
 
 SLIPROCK_API int sliprock_accept(struct SliprockConnection *connection,
                                  SliprockHandle *handle) {
+  struct sliprock_pending_connection con;
   struct sockaddr_un _dummy;
+#if 0
   const unsigned char *pw_pos = connection->passwd;
   const unsigned char *const limit = connection->passwd + 32;
+#endif
   socklen_t _dummy2 = sizeof(struct sockaddr_un);
   int fd;
 
   memset(&_dummy, 0, sizeof(_dummy));
+  memset(&con, 0, sizeof(con));
   assert(-1 != connection->fd);
-#if defined __linux__ || (defined __FreeBSD__ && __FreeBSD__ >= 10) ||    \
-    (defined __NetBSD__ && __NetBSD__ >= 8)
+#if HAVE_ACCEPT4
   fd = accept4(connection->fd, &_dummy, &_dummy2, SOCK_CLOEXEC);
   *handle = (SliprockHandle)fd;
   if (fd < 0)
@@ -86,6 +81,7 @@ SLIPROCK_API int sliprock_accept(struct SliprockConnection *connection,
     return SLIPROCK_EOSERR;
   sliprock_set_cloexec(fd);
 #endif
+#if 0
   while (1) {
     const ssize_t delta = limit - pw_pos;
     ssize_t num_written;
@@ -101,6 +97,10 @@ SLIPROCK_API int sliprock_accept(struct SliprockConnection *connection,
       return 0;
     pw_pos += num_written;
   }
+#else
+  sliprock__init_pending_connection(&con, connection->passwd);
+  return sliprock__poll(&con, fd, 500);
+#endif
 }
 
 int sliprock_bind_os(struct SliprockConnection *connection) {
@@ -194,7 +194,7 @@ static int create_directory_and_file(struct StringBuf *buf) {
   if (fchmod(dir_fd, 0700) < 0)
     goto fail;
   *terminus = '/';
-#ifdef HAVE_RENAMEAT
+#if HAVE_RENAMEAT
   dummybuf = strdup(terminus + 1);
 #else
   dummybuf = strdup(buf->buf);
@@ -207,7 +207,7 @@ static int create_directory_and_file(struct StringBuf *buf) {
     if (sliprock_randombytes_sysrandom_buf(&rnd, sizeof rnd) < 0)
       goto fail;
     StringBuf_add_hex(buf, rnd);
-#ifdef HAVE_OPENAT
+#if HAVE_OPENAT
     file_fd = openat(dir_fd, terminus + 1,
                      O_RDWR | O_CREAT | O_CLOEXEC | O_EXCL, 0600);
 #else
@@ -218,7 +218,7 @@ static int create_directory_and_file(struct StringBuf *buf) {
       break;
     buf->buf -= 16;
   }
-#ifdef HAVE_RENAMEAT
+#if HAVE_RENAMEAT
   if (renameat(dir_fd, terminus + 1, dir_fd, dummybuf) < 0) {
     goto fail;
   }
@@ -284,7 +284,7 @@ static ssize_t sliprock_read_receiver(OsHandle fd,
   return readv(fd, vecs, 3);
 }
 
-#ifndef __linux__
+#if !HAVE_ACCEPT4
 static void sliprock_set_cloexec(OsHandle fd) {
   fcntl(fd, F_SETFD, FD_CLOEXEC);
 }
@@ -334,9 +334,12 @@ static int sliprock_make_sockdir(struct SliprockConnection *connection) {
 int sliprock_connect(const struct SliprockReceiver *receiver,
                      SliprockHandle *handle) {
   int sock = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+#if 0
   unsigned char pw_received[32];
   size_t remaining = sizeof pw_received;
   unsigned char *read_ptr = pw_received;
+#endif
+  struct sliprock_pending_connection con;
   *handle = INVALID_HANDLE_VALUE;
   if (sock < 0)
     return SLIPROCK_EOSERR;
@@ -347,6 +350,7 @@ int sliprock_connect(const struct SliprockReceiver *receiver,
     hclose(sock);
     return SLIPROCK_EOSERR;
   }
+#if 0
   while (remaining > 0) {
     ssize_t num_read = read(sock, read_ptr, remaining);
     if (num_read <= 0)
@@ -368,6 +372,10 @@ int sliprock_connect(const struct SliprockReceiver *receiver,
   }
   hclose(sock);
   return SLIPROCK_EPROTO;
+#else
+  sliprock__init_pending_connection(&con, receiver->passcode);
+  return sliprock__poll(&con, sock, 500);
+#endif
 }
 #if 0
 typedef int (*SlipRockAsyncReadCont)(void *opaque, OsHandle hnd, void *buf,

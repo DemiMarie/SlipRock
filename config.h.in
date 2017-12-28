@@ -1,2 +1,6 @@
-#cmakedefine HAVE_OPENAT 1
-#cmakedefine HAVE_RENAMEAT 1
+#cmakedefine01 HAVE_OPENAT
+#cmakedefine01 HAVE_RENAMEAT
+#cmakedefine01 HAVE_ACCEPT4
+#cmakedefine01 HAVE_STDINT_H
+#cmakedefine01 HAVE_INTTYPES_H
+#cmakedefine01 HAVE_SYS_INTTYPES_H

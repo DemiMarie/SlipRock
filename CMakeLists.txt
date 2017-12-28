@@ -48,18 +48,40 @@ function(check_compiler_lang_flags LANG ARGN)
    set("CMAKE_${LANG}_FLAGS_DEBUG" "${CMAKE_${LANG}_FLAGS} -O0" PARENT_SCOPE)
    set("CMAKE_${LANG}_FLAGS" "${CMAKE_${LANG}_FLAGS}" PARENT_SCOPE)
 endfunction()
+
 if (WIN32)
    add_definitions(-DWIN32_LEAN_AND_MEAN)
 endif()
 if (NOT MSVC)
-   check_compiler_lang_flags(C "${c_flag_list}")
+   if(UNIX)
+      # Check for openat()
+      add_definitions(-D_GNU_SOURCE)
+      set(AT_HEADERS sys/stat.h sys/types.h fcntl.h)
+      check_symbol_exists(openat "${AT_HEADERS}" HAVE_OPENAT)
+      check_symbol_exists(renameat "fcntl.h;stdio.h" HAVE_RENAMEAT)
+      include(CheckIncludeFiles)
+      check_include_files(stdint.h HAVE_STDINT_H)
+      check_include_files(inttypes.h HAVE_INTTYPES_H)
+      check_include_files(sys/inttypes.h HAVE_SYS_INTTYPES_H)
 
-   # Check for openat()
-   set(AT_HEADERS sys/stat.h sys/types.h fcntl.h)
-   check_symbol_exists(openat "${AT_HEADERS}" HAVE_OPENAT)
-   check_symbol_exists(renameat "fcntl.h;stdio.h" HAVE_RENAMEAT)
+      include(CheckCSourceCompiles)
+      list(APPEND CMAKE_REQUIRED_DEFINITIONS -D_GNU_SOURCE)
+      check_c_source_compiles([[
+         #include <stddef.h>
+         #include <sys/types.h>
+         #include <sys/socket.h>
+         int main(void) { 
+            int res = accept4(0, NULL, NULL, SOCK_CLOEXEC);
+         }]] HAVE_ACCEPT4)
+      if (NOT HAVE_ACCEPT4)
+         message(WARNING "Cannot atomically make sockets close-on-exec")
+      endif()
+   endif()
+   if (NOT MSVC AND 0)
+   check_compiler_lang_flags(C "${c_flag_list}")
 endif()
 
+endif()
 find_package(Boost COMPONENTS unit_test_framework)
 
 find_package(Threads)
@@ -87,4 +109,5 @@ endif()
 
 configure_file(config.h.in config.h)
 
+add_definitions(-UNDEBUG)
 install(FILES include/sliprock.h DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")

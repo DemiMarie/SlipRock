@@ -1,3 +1,40 @@
+#include "SHA256.c"
+#include "sliprock_internals.h"
+#include "sliprock_poll.h"
+#include <config.h>
+#include <sliprock.h>
+#include <stdio.h>
+static void compute_reply(const unsigned char key[static 32],
+                          const unsigned char challenge[static 32],
+                          unsigned char hash[static 32]) {
+  hash_state st;
+  sha_init(&st);
+  sha_process(&st, key, 32);
+  sha_process(&st, challenge, 32);
+  sha_done(&st, hash);
+}
+
+static bool verify_challenge(const unsigned char key[static 32],
+                             const unsigned char reply[static 32],
+                             const unsigned char challenge[static 32]) {
+  unsigned char buf[32];
+  compute_reply(key, challenge, buf);
+  return !sliprock_secure_compare_memory(buf, reply, sizeof buf);
+}
+
+int sliprock__init_pending_connection(
+    struct sliprock_pending_connection *pending,
+    const unsigned char buf[static 32]) {
+  SLIPROCK_STATIC_ASSERT((sizeof pending->key == 32));
+  memset(pending, 0, sizeof(*pending));
+  if (sliprock_randombytes_sysrandom_buf(pending->send_buffer,
+                                         CHALLENGE_BYTES))
+    abort();
+  pending->to_send = CHALLENGE_BYTES;
+  memcpy(pending->key, buf, sizeof pending->key);
+  return 0;
+}
+
 static int on_receive(struct sliprock_pending_connection *con,
                       size_t size) {
   int err = -EFAULT;
@@ -9,28 +46,35 @@ static int on_receive(struct sliprock_pending_connection *con,
   /* Too many bytes received?  Order matters because of overflow. */
   if (size > HANDSHAKE_BYTES || HANDSHAKE_BYTES - size < con->received)
     return -EFAULT;
+  assert(size <= 255);
+#define SLIPROCK_DO_TRACE
+#ifdef SLIPROCK_DO_TRACE
+  fprintf(stderr, "Got %d bytes\n", (int)size);
+#endif
+  assert(255 - con->received >= size);
   con->received += size;
-  assert(con->received > size && "impossible integer overflow");
+  assert(con->received >= size && "impossible integer overflow");
   if (con->sent < CHALLENGE_BYTES && con->received > CHALLENGE_BYTES) {
-    /* Peer cannot possibly have known enough to send response this soon */
-    return -EPROTO;
+  /* Peer cannot possibly have known enough to send response this soon */
+#ifdef SLIPROCK_DO_TRACE
+    fprintf(stderr, "Peer sent response too soon!\n");
+#endif
+    return -EFAULT;
   }
   if (con->received >= CHALLENGE_BYTES && !con->received_challenge) {
     /* Challenge received */
     con->received_challenge = true;
-    if ((err = compute_reply(con->key, con->receive_buffer,
-                             con->send_buffer + CHALLENGE_BYTES)))
-      return err;
+    compute_reply(con->key, con->receive_buffer,
+                  con->send_buffer + CHALLENGE_BYTES);
     con->to_send += RESPONSE_BYTES;
   }
   if (con->received >= HANDSHAKE_BYTES) {
     /* Handshake complete */
     assert(HANDSHAKE_BYTES == con->received && "Overflow not detected!");
-    if ((err = verify_challenge(con->key,
-                                con->receive_buffer + CHALLENGE_BYTES,
-                                con->send_buffer))) {
-      assert(err < 0);
-      return err;
+    if ((err = !verify_challenge(con->key,
+                                 con->receive_buffer + CHALLENGE_BYTES,
+                                 con->send_buffer))) {
+      return -EPROTO;
       /* Crypto error */
     } else {
       /* Good reply */
@@ -41,8 +85,8 @@ static int on_receive(struct sliprock_pending_connection *con,
   return 0;
 }
 
-static int sliprock_on_receive(struct sliprock_pending_connection *con,
-                               size_t bytes) {
+int sliprock__on_receive(struct sliprock_pending_connection *con,
+                         size_t bytes) {
   int err;
   assert(NULL != con);
   err = on_receive(con, bytes);
@@ -56,9 +100,14 @@ static int sliprock_on_receive(struct sliprock_pending_connection *con,
   }
 }
 
-SLIPROCK_API int sliprock_on_send(struct sliprock_pending_connection *con,
-                                  size_t size) {
-  return sliprock__on_send(con, size);
+SLIPROCK_API void
+sliprock_on_receive(struct sliprock_pending_connection *con, size_t size) {
+  sliprock__on_receive(con, size);
+}
+
+SLIPROCK_API void sliprock_on_send(struct sliprock_pending_connection *con,
+                                   size_t size) {
+  sliprock__on_send(con, size);
 }
 
 bool sliprock__connection_is_good(
@@ -67,19 +116,14 @@ bool sliprock__connection_is_good(
          HANDSHAKE_BYTES == con->received;
 }
 
-int sliprock__on_send(struct sliprock_pending_connection *con,
-                      size_t size) {
-  ASSERT(con);
-  ASSERT(con->sent <= HANDSHAKE_BYTES);
-  if (size > con->to_send) {
-    assert(!"Sent data before it was ready!");
-    return -EPROTO;
-  }
+void sliprock__on_send(struct sliprock_pending_connection *con,
+                       size_t size) {
+  assert(con);
+  assert(con->sent <= HANDSHAKE_BYTES);
+  assert(size <= con->to_send && "Sent data before it was ready!");
   con->sent += size;
   con->to_send -= size;
 
-  if (!con->received_challenge && con->sent > CHALLENGE_BYTES) {
-    assert(!"Sent challenge response before receiving challenge!");
-    return -EPROTO;
-  }
+  assert((con->received_challenge || con->sent <= CHALLENGE_BYTES) &&
+         "Sent challenge response before receiving challenge!");
 }

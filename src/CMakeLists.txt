@@ -1,6 +1,6 @@
 set(my_targets sliprock sliprock_static)
-add_library(sliprock_static STATIC sliprock.c randombytes_sysrandom.c)
-add_library(sliprock SHARED sliprock.c randombytes_sysrandom.c)
+add_library(sliprock_static STATIC sliprock.c randombytes_sysrandom.c poll.c state_machine.c)
+add_library(sliprock SHARED sliprock.c randombytes_sysrandom.c poll.c state_machine.c)
 
 if (WIN32)
    target_link_libraries(${my_targets} userenv advapi32)
