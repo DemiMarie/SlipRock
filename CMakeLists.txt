@@ -8,18 +8,20 @@ include_directories(. include "${CMAKE_CURRENT_BINARY_DIR}")
 set(THREADS_PREFER_PTHREAD_FLAG 1)
 find_package(Threads)
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules")
+add_definitions(-D_FORTIFY_SOURCE)
 if(WINDOWS)
    add_definitions(-DUNICODE -D_UNICODE)
 endif()
 
-set(both_flag_list Werror Wall Wextra Weverything Wno-padded
+set(both_flag_list Werror Wstrict-aliasing Wstrict-overflow Wall Wextra
+   Weverything Wno-padded Wno-disabled-macro-expansion
    Wno-gnu-statement-expression Wformat=2 Wstrict-aliasing=5 Wstrict-overflow=5)
 
 if (WINDOWS)
    set(both_flag_list "${both_flag_list};-static-libgcc;-static-libstdc++")
 endif()
 
-if (SLIPROCK_TRACE) # AND NOT SLIPROCK_TRACE STREQUAL "Release"
+if (SLIPROCK_TRACE AND NOT SLIPROCK_TRACE STREQUAL "Release")
    add_definitions(-DSLIPROCK_TRACE)
 endif()
 
@@ -45,7 +47,7 @@ function(check_compiler_lang_flags LANG ARGN)
          set("CMAKE_${LANG}_FLAGS" "${CMAKE_${LANG}_FLAGS} -${my_flag}")
       endif()
    endforeach()
-   set("CMAKE_${LANG}_FLAGS_DEBUG" "${CMAKE_${LANG}_FLAGS} -O0" PARENT_SCOPE)
+   set("CMAKE_${LANG}_FLAGS_DEBUG" "${CMAKE_${LANG}_FLAGS_DEBUG} -O0" PARENT_SCOPE)
    set("CMAKE_${LANG}_FLAGS" "${CMAKE_${LANG}_FLAGS}" PARENT_SCOPE)
 endfunction()
 

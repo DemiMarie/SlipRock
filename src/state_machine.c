@@ -47,7 +47,7 @@ static int on_receive(struct sliprock_pending_connection *con,
   if (size > HANDSHAKE_BYTES || HANDSHAKE_BYTES - size < con->received)
     return -EFAULT;
   assert(size <= 255);
-#define SLIPROCK_DO_TRACE
+/* #define SLIPROCK_DO_TRACE */
 #ifdef SLIPROCK_DO_TRACE
   fprintf(stderr, "Got %d bytes\n", (int)size);
 #endif

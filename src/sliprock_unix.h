@@ -59,10 +59,6 @@ SLIPROCK_API int sliprock_accept(struct SliprockConnection *connection,
                                  SliprockHandle *handle) {
   struct sliprock_pending_connection con;
   struct sockaddr_un _dummy;
-#if 0
-  const unsigned char *pw_pos = connection->passwd;
-  const unsigned char *const limit = connection->passwd + 32;
-#endif
   socklen_t _dummy2 = sizeof(struct sockaddr_un);
   int fd;
 
@@ -81,26 +77,13 @@ SLIPROCK_API int sliprock_accept(struct SliprockConnection *connection,
     return SLIPROCK_EOSERR;
   sliprock_set_cloexec(fd);
 #endif
-#if 0
-  while (1) {
-    const ssize_t delta = limit - pw_pos;
-    ssize_t num_written;
-    assert(delta >= 0);
-    num_written = write(fd, pw_pos, (size_t)delta);
-    if (num_written <= 0) {
-      hclose(fd);
-      *handle = INVALID_HANDLE_VALUE;
-      return SLIPROCK_EPROTO;
-    }
-    assert(num_written <= delta);
-    if (num_written >= delta)
-      return 0;
-    pw_pos += num_written;
-  }
-#else
   sliprock__init_pending_connection(&con, connection->passwd);
-  return sliprock__poll(&con, fd, 500);
-#endif
+  int retval = sliprock__poll(&con, fd, 500);
+  if (retval < 0) {
+     close(fd);
+     return retval;
+  }
+  return 0;
 }
 
 int sliprock_bind_os(struct SliprockConnection *connection) {
@@ -334,11 +317,6 @@ static int sliprock_make_sockdir(struct SliprockConnection *connection) {
 int sliprock_connect(const struct SliprockReceiver *receiver,
                      SliprockHandle *handle) {
   int sock = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
-#if 0
-  unsigned char pw_received[32];
-  size_t remaining = sizeof pw_received;
-  unsigned char *read_ptr = pw_received;
-#endif
   struct sliprock_pending_connection con;
   *handle = INVALID_HANDLE_VALUE;
   if (sock < 0)
@@ -350,107 +328,13 @@ int sliprock_connect(const struct SliprockReceiver *receiver,
     hclose(sock);
     return SLIPROCK_EOSERR;
   }
-#if 0
-  while (remaining > 0) {
-    ssize_t num_read = read(sock, read_ptr, remaining);
-    if (num_read <= 0)
-      break;
-    if (remaining >= (size_t)num_read) {
-      /* Check the passcode */
-      if (0 == sliprock_secure_compare_memory(pw_received,
-                                              receiver->passcode, 32)) {
-        *handle = (SliprockHandle)sock;
-        return 0;
-      } else {
-        close(sock);
-        return SLIPROCK_ENOAUTH;
-      }
-    } else {
-      remaining -= (size_t)num_read;
-      read_ptr += num_read;
-    }
-  }
-  hclose(sock);
-  return SLIPROCK_EPROTO;
-#else
   sliprock__init_pending_connection(&con, receiver->passcode);
-  return sliprock__poll(&con, sock, 500);
-#endif
-}
-#if 0
-typedef int (*SlipRockAsyncReadCont)(void *opaque, OsHandle hnd, void *buf,
-                                     ssize_t size);
-typedef int (*SlipRockAsyncReadCB)(void *user, void *opaque, OsHandle hnd,
-                                   void *buf, ssize_t size,
-                                   SlipRockAsyncReadCont cont);
-
-typedef int (*SlipRockCopyCB)(void *user, size_t size);
-struct SlipRockAsyncBuf {
-  OsHandle in, out;
-  void *user;
-  SlipRockCopyCb cb;
-  size_t start, end;
-  bool is_reading;
-  char buf[2048];
-};
-
-static int async_copy(void *user, OsHandle in, OsHandle out,
-                      SlipRockCopyCB cb) {
-  struct SlipRockAsyncBuf *ptr = calloc(1, sizeof(struct SlipRockAsyncBuf));
-  if (NULL == ptr)
-    return -ENOMEM;
-  ptr->in = in, ptr->out = out, ptr->start = ptr->end = 0, ptr->user = user,
-  ptr->cb = cb;
-  ptr->is_reading = true;
-  return async_read(user, ptr, in, &ptr->buf, sizeof ptr->buf, async_copy_cont);
-}
-static int async_copy_cont(void *opaque, OsHandle hnd, void *buf,
-                           ssize_t size) {
-  struct SlipRockAsyncBuf *data = (struct SlipRockAsyncBuf *)opaque;
-  assert(&data->buf == buf);
-  if (size <= 0) {
-    SlipRockCopyCb cb = data->cb;
-    void *user = data->user;
-    ssize_t left_in_buf = data->end - data->start;
-    assert(left_in_buf >= 0);
-    free(data);
-    return cb(user, size, left_in_buf);
+  int res = sliprock__poll(&con, sock, 500);
+  if (res >= 0) {
+     *handle = sock;
+     return 0;
   }
-  assert(size < sizeof data->buf);
-  if (buf->is_reading) {
-    /* Assert we didn't have a buffer overflow */
-    assert(sizeof(data->buf) - (size_t)size >= data->end);
-    buf->end += (size_t)size;
-    assert(buf->end <= sizeof(data->buf));
-    if (sizeof(data->buf) <= buf->end) {
-      /* Done reading - time to write */
-    write:
-      buf->is_reading = false;
-      return async_write(buf->user, (void *)buf, buf->out, &buf->buf,
-                         sizeof(data->buf), async_copy_cont);
-    } else {
-      /* Time to read! */
-    read:
-      buf->is_reading = true;
-      return async_read(buf->user, (void *)buf, buf->in, &buf->buf,
-                        sizeof(data->buf), async_copy_cont);
-    }
-  } else {
-    /* Assert no buffer overflow */
-    assert(buf->end - size >= buf->start);
-    assert(sizeof(data->buf) == buf->end);
-
-    /* Update start cursor */
-    buf->start += (size_t)size;
-    if (buf->start >= buf->end) {
-      /* Time to switch to reads */
-      buf->start = buf->end = 0;
-      goto read;
-    } else {
-      goto write;
-    }
-  }
+  return res;
 }
-#endif
 #define UNIX_CONST const
 #endif

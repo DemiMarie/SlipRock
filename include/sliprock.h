@@ -164,58 +164,87 @@ SLIPROCK_API void sliprock_close_receiver(struct SliprockReceiver *receiver);
 /**
  * Connects the given SliprockReceiver to its peer.
  *
- * This connects the given SliprockReceiver to its peer.  On return, *handle is
- * an OS handle to the connection, or -1 (suitably cast) on error.
+ * This connects the given SliprockReceiver to its peer.  On return,
+ * *handle is an OS handle to the connection, or -1 (suitably cast) on
+ * error.
  *
  * \return 0 on success, a (negative) SlipRock error code on failure.
  *
- * It is safe to call this function may be from multiple threads concurrently,
- * even with the same \p receiver.
+ * It is safe to call this function may be from multiple threads
+ * concurrently, even with the same \p receiver.
  *
- * This is a blocking call and blocks until the peer has created a connection.
+ * This is a blocking call and blocks until the peer has created a
+ * connection.
  */
 SLIPROCK_API int sliprock_connect(const struct SliprockReceiver *receiver,
                                   SliprockHandle *handle);
 
 /**
- * Unsafely gets the raw OS handle to a server-side connection.
+ * A connection that is not yet fully open.  This can be used for
+ * asynchronous establishment of connections.
  *
- * This function unsafely obtains the raw OS handle to the server-side
- * connection.  This is an open AF_UNIX socket on *nix and a HANDLE to a named
- * pipe on Windows.  The return value should be downcast to the appropriate
- * type.
+ * The lifecycle is as follows.  The examples assume that you are
+ * using libuv for async I/O, but they work for any such library.
  *
- * SlipRock promises that the return value will be a valid HANDLE (Windows) or
- * file descriptor (*nix), but only until sliprock_close() is called.  If
- * `should_release` is zero, the handle is owned by SlipRock; it must not be
- * deallocated by the caller.  Otherwise, the handle is no longer owned by
- * SlipRock – the caller is responsible for deallocation.  Subsequent calls to
- * sliprock_accept() or sliprock_UNSAFEgetRawHandle() will cause a fatal
- * assertion failure.
+ * 1. Call sliprock_sockaddr() to get the `struct sockaddr_storage` to
+ *     connect to.
  *
- * It is not safe to call this function concurrently with other calls that pass
- * the same \p connection argument if \p should_release is true.  If it is
- * false, this function can be called concurrently with other SlipRock calls,
- * even on the same \p connection.
+ * 2. Establish the connection yourself, say by calling uv_tcp_bind()
+ *     (Windows) or uv_pipe_bind() (Unix) followed by uv_listen() and
+ *     uv_accept().
+ *
+ * 3. Call sliprock_init_pending_connection_server() (server) or
+ *     sliprock_init_pending_connection_client() (client) to get a
+ *     sliprock_pending_connection* pointer (or an error because we
+ *     ran out of memory or failed to obtain random numbers from the
+ *     OS).
+ *
+ * 4. Call sliprock_get_read() and sliprock_get_write() to get the
+ *     pointers to use for I/O, along with the number of bytes to read
+ *     and write.
+ *
+ * 5. Initiate asynchronous I/O using functions such as uv_tcp_read()
+ *     and uv_tcp_write().  But don't do so if there are zero bytes to
+ *     read or write.
+ *
+ * 6. When I/O completes, call sliprock_on_read() and
+ *     sliprock_on_write() to notify SlipRock that I/O has occurred.
+ *
+ * 7. If these functions return SLIPROCK_CONNECTION_ESTABLISHED, then
+ *     the connection is fully established.  If it returns
+ *     SLIPROCK_ERROR, the connection should be torn down.  Finally,
+ *     if it returns SLIPROCK_PENDING, repeat steps 4 through 7
+ *     inclusive.
+ *
+ * 8. Once the connection is established, you can free the connection
+ *     with sliprock_destroy_pending_connection(), or re-initialize it
+ *     with sliprock_reinit_pending_connection() so that it can safely
+ *     be used again.
  */
-SLIPROCK_API SliprockHandle sliprock_UNSAFEgetRawHandle(
-    struct SliprockConnection *connection, int should_release);
+typedef struct sliprock_pending_connection sliprock_pending_connection;
 
 /**
- * Gets a pointer to the passphrase in a SliprockConnection.
- *
- * The passphrase is guaranteed to be 32 bytes.  It must not be leaked to
- * untrusted code.  Failing to meet this requirement loses all security
- * guarantees provided by this library.
- *
- * If an OS handle is retrieved using sliprock_UNSAFEgetRawHandle(), the bytes
- * pointed to by this **MUST** be the first thing written to any handles created
- * from the OS handle.
- *
- * @return the pointer to the passphrase.
+ * A struct that includes the common prefix of {struct
+ * SliprockConnection} and {struct SliprockReceiver}.  Therefore, a
+ * pointer to either of those can be cast to a {struct
+ * SliprockAnyConnection*}.
  */
-SLIPROCK_API const unsigned char *
-sliprock_UNSAFEgetPasscode(const struct SliprockConnection *connection);
+typedef struct SliprockAnyConnection SliprockAnyConnection;
+
+/**
+ * Called to initialize a sliprock_pending_connection from a
+ * SliprockAnyConnection.  This can be used to use Sliprock
+ * asynchronously, with the user program responsible for performing
+ * I/O
+ *
+ * \param [out] pending Set to a valid pointer on success, or NULL on error.
+ * \param [in] connection The connection from which to set the pending connection's data.
+ * \return a Sliprock error code.
+ */
+SLIPROCK_API int sliprock_init_pending_connection(struct sliprock_pending_connection **pending,
+                                                  struct SliprockAnyConnection *connection);
+
+SLIPROCK_API void sliprock_get_sockaddr(struct SliprockAnyConnection *connection, struct sockaddr_storage *addr);
 
 #ifdef _MSC_VER
 #define SLIPROCK_NOINLINE __declspec(noinline)
@@ -250,34 +279,7 @@ sliprock_secure_compare_memory(const volatile unsigned char *const buf1,
 SLIPROCK_WARN_UNUSED_RESULT int
 sliprock_randombytes_sysrandom_buf(void *const buf, const size_t size);
 
-#if 0
-/**
- * Async accept callback.
- *
- * Must be called by SlipRockAsyncAccept().
- */
-
-
-/**
- * Accept async function.
- *
- * On Unix-like systems, it is expected that the returned FD will be close-on-exec.
- */
-typedef int (*SlipRockAsyncAccept)(OsHandle fd, void *opaque);
-
-/**
- * Asynchronous I/O support.
- *
- * This struct must be provided to enable asynchronous I/O in SlipRock.
- * If it is not provided, synchronous I/O will be used.
- *
- * Note that filesystem I/O is never asynchronous in SlipRock.  Therefore,
- * operations that involve it should not be performed on event loop threads.
- */
-struct SlipRockAsyncIO {
-
- /* make emacs happy */
-#elif defined __cplusplus
+#if defined __cplusplus
 }
 #endif
 #endif

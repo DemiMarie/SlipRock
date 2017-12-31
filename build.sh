@@ -3,7 +3,7 @@ set -e
 newline='
 ' buildtype=Debug target=unix mydir=$(dirname "$0"; echo a)
 mydir=${mydir%"${newline}a"}
-sanitizeflags='-fsanitize=address -pthread -fsanitize=undefined'
+sanitizeflags=' -pthread -fsanitize=undefined -fsanitize-trap=undefined'
 case $mydir in
    /*) cd "$mydir";;
     *) cd "./$mydir";;
@@ -13,7 +13,7 @@ for i; do
    case $i in
       unix) target=unix;;
       windows) target=windows sanitizeflags='';;
-      debug) buildtype=Debug;;
+      debug) buildtype=Debug CFLAGS=-g3 CXXFLAGS=-g3;;
       release) buildtype=Release;;
       cc=*) definitions+=(-DCMAKE_C_COMPILER=${i#cc=});;
       cxx=*) definitions+=(-DCMAKE_CXX_COMPILER=${i#cxx=});;
@@ -21,8 +21,8 @@ for i; do
    esac
 done
 mydir=$PWD
-tmpdir=$(mktemp -d)
-trap 'rm -rf -- "$tmpdir"' EXIT
+tmpdir=build
+#trap 'rm -rf -- "$tmpdir"' EXIT
 cd -- "$tmpdir"
 if [[ $target = unix ]]; then
    run_with_checks () {

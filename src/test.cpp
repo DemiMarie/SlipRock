@@ -119,7 +119,7 @@ bool server(char (&buf)[n], SliprockConnection *con, bool &finished,
   MADE_IT;
   SliprockHandle handle_;
   int err = sliprock_accept(con, &handle_);
-  if (err != 0) {
+  if (err < 0) {
     fprintf(stderr, "error code %d\n", err);
     return false;
   }
@@ -133,8 +133,11 @@ bool server(char (&buf)[n], SliprockConnection *con, bool &finished,
   if (write(handle, buf, sizeof buf) != sizeof buf)
     return false;
   MADE_IT;
-  if (read(handle, buf3, sizeof buf) != sizeof buf)
-    return false;
+  do {
+     errno = 0;
+     if (read(handle, buf3, sizeof buf) != sizeof buf && errno != EAGAIN && errno != EWOULDBLOCK)
+        return false;
+  } while (errno == EAGAIN || errno == EWOULDBLOCK);
   MADE_IT;
   if (close(handle))
     return false;

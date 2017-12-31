@@ -32,7 +32,7 @@ struct StringBuf {
 };
 
 /**
- * Initialize a string buffer.  Similar to Windows'
+ * Initialize a string buffer.  Similar to Windows's
  * RtlUnicodeStringInit().
  * @param buf The buffer to initialize.
  * @param buf_capacity The capacity of the buffer.

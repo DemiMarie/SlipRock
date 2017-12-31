@@ -7,7 +7,6 @@
 
 #include <winsock.h>
 #include <ws2tcpip.h>
-typedef struct SOCKADDR_STORAGE sliprock_sockaddr_storage_t;
 typedef SOCKET sliprock_socket_t;
 typedef WSAPOLLFD sliprock_poll_fd;
 #define SLIPROCK_API __declspec(dllexport)
@@ -26,7 +25,6 @@ typedef WSAPOLLFD sliprock_poll_fd;
 #include <poll.h>
 #include <stdbool.h>
 #include <unistd.h>
-typedef struct sockaddr_storage sliprock_sockaddr_storage_t;
 typedef int sliprock_socket_t;
 typedef struct pollfd sliprock_poll_fd;
 #define SLIPROCK_POLL poll
