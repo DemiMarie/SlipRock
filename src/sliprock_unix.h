@@ -51,7 +51,7 @@ static int sliprock_get_home_directory(void **freeptr,
 
 static int sliprock_make_sockdir(struct SliprockConnection *connection);
 
-#define CON_PATH(con) ((con)->address.sun_path)
+#define CON_PATH(con) ((con)->prefix.sockaddr.addr.sun_path)
 
 int sliprock_bind_os(struct SliprockConnection *connection);
 
@@ -77,11 +77,11 @@ SLIPROCK_API int sliprock_accept(struct SliprockConnection *connection,
     return SLIPROCK_EOSERR;
   sliprock_set_cloexec(fd);
 #endif
-  sliprock__init_pending_connection(&con, connection->passwd);
+  sliprock__init_pending_connection(&con, connection->prefix.key);
   int retval = sliprock__poll(&con, fd, 500);
   if (retval < 0) {
-     close(fd);
-     return retval;
+    close(fd);
+    return retval;
   }
   return 0;
 }
@@ -100,7 +100,8 @@ int sliprock_bind_os(struct SliprockConnection *connection) {
 #endif
 
     /* Bind the socket */
-    if (bind(connection->fd, &connection->address,
+    if (bind(connection->fd,
+             (struct sockaddr *)&connection->prefix.sockaddr.addr,
              sizeof(struct sockaddr_un)) == 0) {
       if (listen(connection->fd, INT_MAX) == 0) {
         return 0;
@@ -234,11 +235,11 @@ fail:
 #define FreeIdent(x) ((void)0)
 static int write_connection(OsHandle fd, struct SliprockConnection *con) {
   static const ssize_t len =
-      MAX_SOCK_LEN + sizeof con->passwd + sizeof SLIPROCK_MAGIC - 1;
+      MAX_SOCK_LEN + sizeof con->prefix.key + sizeof SLIPROCK_MAGIC - 1;
   struct iovec vec[] = {
       {SLIPROCK_MAGIC, sizeof SLIPROCK_MAGIC - 1},
-      {con->passwd, sizeof con->passwd},
-      {&con->address.sun_path, MAX_SOCK_LEN},
+      {con->prefix.key, sizeof con->prefix.key},
+      {con->prefix.sockaddr.addr.sun_path, MAX_SOCK_LEN},
   };
   return writev(fd, vec, 3) == len ? 0 : -1;
 }
@@ -259,11 +260,11 @@ static ssize_t sliprock_read_receiver(OsHandle fd,
                                       char magic[STATIC_ARR MAGIC_SIZE]) {
   struct iovec vecs[] = {
       {magic, sizeof SLIPROCK_MAGIC - 1},
-      {receiver->passcode, sizeof receiver->passcode},
-      {&receiver->sock.sun_path, MAX_SOCK_LEN},
+      {receiver->prefix.key, sizeof receiver->prefix.key},
+      {&receiver->prefix.sockaddr.addr.sun_path, MAX_SOCK_LEN},
   };
-  memset(&receiver->sock, 0, sizeof receiver->sock);
-  receiver->sock.sun_family = AF_UNIX;
+  memset(receiver, 0, sizeof *receiver);
+  receiver->prefix.sockaddr.addr.sun_family = AF_UNIX;
   return readv(fd, vecs, 3);
 }
 
@@ -316,6 +317,8 @@ static int sliprock_make_sockdir(struct SliprockConnection *connection) {
 /* See documentation in sliprock.h */
 int sliprock_connect(const struct SliprockReceiver *receiver,
                      SliprockHandle *handle) {
+  SLIPROCK_STATIC_ASSERT(sizeof(struct sockaddr_storage) >=
+                         sizeof(struct sockaddr_un));
   int sock = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
   struct sliprock_pending_connection con;
   *handle = INVALID_HANDLE_VALUE;
@@ -324,15 +327,16 @@ int sliprock_connect(const struct SliprockReceiver *receiver,
 #ifdef SLIPROCK_NO_SOCK_CLOEXEC
   sliprock_set_cloexec(sock);
 #endif
-  if (connect(sock, &receiver->sock, sizeof(struct sockaddr_un)) < 0) {
+  if (connect(sock, &receiver->prefix.sockaddr.addr,
+              sizeof(receiver->prefix.sockaddr.addr)) < 0) {
     hclose(sock);
     return SLIPROCK_EOSERR;
   }
-  sliprock__init_pending_connection(&con, receiver->passcode);
+  sliprock__init_pending_connection(&con, receiver->prefix.key);
   int res = sliprock__poll(&con, sock, 500);
   if (res >= 0) {
-     *handle = sock;
-     return 0;
+    *handle = sock;
+    return 0;
   }
   return res;
 }

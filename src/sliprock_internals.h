@@ -1,16 +1,22 @@
 #ifndef SLIPROCK_INTERNALS_H_INCLUDED
 #define SLIPROCK_INTERNALS_H_INCLUDED SLIPROCK_INTERNALS_H_INCLUDED
 
-#include <stdint.h>
+#include "config.h"
+#include <stdarg.h>
 #ifndef _WIN32
+#include <sys/socket.h>
 #include <sys/types.h>
-#elif defined _MSC_VER
-#ifdef _WIN64
-/* typedef __int64 ssize_t; */
-#define ssize_t __int64
+#include <sys/un.h>
+typedef int sliprock_os_socket_t;
 #else
-/* typedef __int32 ssize_t; */
-#define ssize_t __int32
+#include <winsock2.h>
+typedef SOCKET sliprock_os_socket_t;
+#ifdef _MSC_VER
+#ifdef _WIN64
+typedef __int64 ssize_t;
+#else
+typedef __int32 ssize_t;
+#endif
 #endif
 #endif
 #define MAGIC_SIZE (sizeof SLIPROCK_MAGIC - 1)
@@ -36,6 +42,18 @@ sliprock_trace(const char *str, ...) {
   (void)str;
 #endif
 }
+
+struct SliprockAnyConnection {
+  unsigned char key[32];
+  union {
+    struct sockaddr_storage reserved;
+#ifdef _WIN32
+    struct sockaddr_in addr;
+#else
+    struct sockaddr_un addr;
+#endif
+  } sockaddr;
+};
 #ifdef _WIN32
 #include <windows.h>
 typedef wchar_t MyChar;
@@ -54,18 +72,12 @@ typedef int OsHandle;
 #endif
 /* The actual connection struct */
 struct SliprockConnection {
+  struct SliprockAnyConnection prefix;
   size_t namelen;
   /* const char path[SOCKET_PATH_LEN]; */
   struct StringBuf path;
-  unsigned char passwd[32];
   OsHandle fd;
-#ifdef _WIN32
-  wchar_t pipename[MAX_SOCK_LEN];
-  HANDLE hPipe;
-  DWORD lastError;
-#else
-  struct sockaddr_un address;
-#endif
+  sliprock_os_socket_t socket;
   char has_socket;
   char name[];
 };
@@ -77,21 +89,9 @@ struct SliprockConnection {
 #endif
 /* A receiver for SlipRock connections */
 struct SliprockReceiver {
-  unsigned char passcode[32]; /**< The passcode of the connection */
+  struct SliprockAnyConnection prefix;
   int pid;
-#ifndef _WIN32
-  struct sockaddr_un sock; /**< The pathname of the socket */
-#else
-  wchar_t sock[MAX_SOCK_LEN];
-#endif
 };
-
-/* Cryptographic random number generation */
-#if defined __GNUC__ || defined __INTEL_COMPILER
-__attribute__((warn_unused_result))
-#endif
- int
-sliprock_randombytes_sysrandom_buf(void *const buf, const size_t size);
 
 #define NOINLINE SLIPROCK_NOINLINE
 

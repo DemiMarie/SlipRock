@@ -13,7 +13,7 @@ extern "C" {
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
-#include <windows.h>
+#include <winsock2.h>
 #ifdef SLIPROCK_INTERNALS
 #define SLIPROCK_API __declspec(dllexport)
 #else
@@ -41,7 +41,7 @@ extern "C" {
 #define SLIPROCK_ERANGE -8    /* Argument out of range (ex. too long) */
 #define SLIPROCK_EILSEQ -9    /* Illegal byte sequence */
 #define SLIPROCK_EINTERNALERROR -10 /* Internal error (this is a bug) */
-#define SLIPROCK_EPROTO -11         /* Protocol error */
+/* #define SLIPROCK_EPROTO -11        Protocol error */
 
 #if !defined static_assert && (!defined __cplusplus || __cplusplus < 201103L)
 #define SLIPROCK_STATIC_ASSERT(expr)                                           \
@@ -238,13 +238,16 @@ typedef struct SliprockAnyConnection SliprockAnyConnection;
  * I/O
  *
  * \param [out] pending Set to a valid pointer on success, or NULL on error.
- * \param [in] connection The connection from which to set the pending connection's data.
- * \return a Sliprock error code.
+ * \param [in] connection The connection from which to set the pending
+ * connection's data. \return a Sliprock error code.
  */
-SLIPROCK_API int sliprock_init_pending_connection(struct sliprock_pending_connection **pending,
-                                                  struct SliprockAnyConnection *connection);
+SLIPROCK_API int
+sliprock_init_pending_connection(struct sliprock_pending_connection **pending,
+                                 struct SliprockAnyConnection *connection);
 
-SLIPROCK_API void sliprock_get_sockaddr(struct SliprockAnyConnection *connection, struct sockaddr_storage *addr);
+SLIPROCK_API void
+sliprock_get_sockaddr(struct SliprockAnyConnection *connection,
+                      struct sockaddr_storage *addr);
 
 #ifdef _MSC_VER
 #define SLIPROCK_NOINLINE __declspec(noinline)

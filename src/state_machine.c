@@ -59,7 +59,7 @@ static int on_receive(struct sliprock_pending_connection *con,
 #ifdef SLIPROCK_DO_TRACE
     fprintf(stderr, "Peer sent response too soon!\n");
 #endif
-    return -EFAULT;
+    return -EPROTO;
   }
   if (con->received >= CHALLENGE_BYTES && !con->received_challenge) {
     /* Challenge received */

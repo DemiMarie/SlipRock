@@ -3,7 +3,7 @@ set -e
 newline='
 ' buildtype=Debug target=unix mydir=$(dirname "$0"; echo a)
 mydir=${mydir%"${newline}a"}
-sanitizeflags=' -pthread -fsanitize=undefined -fsanitize-trap=undefined'
+sanitizeflags=' -pthread'
 case $mydir in
    /*) cd "$mydir";;
     *) cd "./$mydir";;

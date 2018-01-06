@@ -64,7 +64,9 @@ static int sliprock_new(const char *const name, const size_t namelen,
   if (NULL == connection)
     return SLIPROCK_ENOMEM;
 #ifndef _WIN32
-  connection->address.sun_family = AF_UNIX;
+  connection->prefix.sockaddr.addr.sun_family = AF_UNIX;
+#else
+  connection->prefix.sockaddr.addr.sun_family = AF_INET;
 #endif
   /* We have (by construction) enough space for the name */
   memcpy(&connection->name, name, namelen);
@@ -180,8 +182,8 @@ static int sliprock_bind(struct SliprockConnection *con) {
                               &res, 17, &con->path)) < 0) {
     return e;
   }
-  if (sliprock_randombytes_sysrandom_buf(con->passwd, sizeof con->passwd) <
-      0) {
+  if (sliprock_randombytes_sysrandom_buf(con->prefix.key,
+                                         sizeof con->prefix.key) < 0) {
     return SLIPROCK_ENORND;
   }
   fd = create_directory_and_file(&con->path);
@@ -259,8 +261,9 @@ sliprock_close_receiver(struct SliprockReceiver *receiver) {
 static int check_receiver(OsHandle fd, struct SliprockReceiver *receiver) {
   char magic[sizeof(SLIPROCK_MAGIC) - 1] = {0};
   int res = (int)sliprock_read_receiver(fd, receiver, magic);
-  static const ssize_t size =
-      (sizeof SLIPROCK_MAGIC - 1) + 32 + sizeof(TCHAR) * MAX_SOCK_LEN;
+  static const ssize_t size = (sizeof SLIPROCK_MAGIC - 1) +
+                              sizeof(receiver->prefix.key) +
+                              sizeof(TCHAR) * MAX_SOCK_LEN;
   if (res != size)
     return res >= 0 ? SLIPROCK_EPROTO : SLIPROCK_EOSERR;
   else {
@@ -333,5 +336,5 @@ SLIPROCK_API uint64_t sliprock_UNSAFEgetRawHandle(
 
 SLIPROCK_API const unsigned char *
 sliprock_UNSAFEgetPasscode(const struct SliprockConnection *connection) {
-  return connection->passwd;
+  return connection->prefix.key;
 }

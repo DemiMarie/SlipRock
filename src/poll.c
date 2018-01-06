@@ -60,7 +60,7 @@ static ssize_t sliprock__send_once(struct sliprock_pending_connection *con,
  */
 static ssize_t sliprock__send(struct sliprock_pending_connection *con,
                               sliprock_socket_t fd) {
-   assert(con->to_send);
+  assert(con->to_send);
   ssize_t res;
   do {
     res = sliprock__send_once(con, fd);
@@ -73,10 +73,10 @@ static ssize_t sliprock__send(struct sliprock_pending_connection *con,
  */
 static bool do_retry(ssize_t val) {
   switch (val) {
-  case -EINTR:
-  case -EAGAIN:
-#if EAGAIN != EWOULDBLOCK
-  case -EWOULDBLOCK:
+  case -SLIPROCK_EINTR:
+  case -SLIPROCK_EAGAIN:
+#if SLIPROCK_EAGAIN != SLIPROCK_EWOULDBLOCK
+  case -SLIPROCK_EWOULDBLOCK:
 #endif
     return true;
   default:
@@ -106,7 +106,7 @@ SLIPROCK_API int sliprock_on_poll(short events,
  */
 int sliprock__poll(struct sliprock_pending_connection *conn,
                    sliprock_socket_t fd, int timeout) {
-  sliprock_poll_fd p = {fd, SLIPROCK_POLL_FLAGS, 0};
+  struct pollfd p = {fd, SLIPROCK_POLL_FLAGS, 0};
 #ifndef _WIN32
   fcntl(fd, F_SETFL, O_NONBLOCK);
 #endif

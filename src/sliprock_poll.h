@@ -1,3 +1,4 @@
+#include "config.h"
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -8,36 +9,40 @@
 #include <winsock.h>
 #include <ws2tcpip.h>
 typedef SOCKET sliprock_socket_t;
-typedef WSAPOLLFD sliprock_poll_fd;
-#define SLIPROCK_API __declspec(dllexport)
 #define SLIPROCK_POLL WSAPoll
 #define SLIPROCK_POLL_FLAGS (POLLRDNORM | POLLWRNORM)
-#define errno (WSAGetLastError())
-#define EAGAIN WSAEWOULDBLOCK
-#define EWOULDBLOCK WSAEWOULDBLOCK
-#define EPROTO WSAEPROTO
-#define EINTR WSAEINTR
+#define SLIPROCK_EAGAIN WSAEWOULDBLOCK
+#define SLIPROCK_EWOULDBLOCK WSAEWOULDBLOCK
+#define SLIPROCK_EPROTO WSAEPROTO
+#define SLIPROCK_EINTR WSAEINTR
 
 #else /* !defined _WIN32 */
 
 #define SLIPROCK_API __attribute__((visibility("default")))
+
 #include <errno.h>
 #include <poll.h>
-#include <stdbool.h>
 #include <unistd.h>
 typedef int sliprock_socket_t;
-typedef struct pollfd sliprock_poll_fd;
 #define SLIPROCK_POLL poll
 #define SLIPROCK_POLL_FLAGS (POLLIN | POLLOUT)
+#define SLIPROCK_EAGAIN EAGAIN
+#define SLIPROCK_EWOULDBLOCK EWOULDBLOCK
+#define SLIPROCK_EPROTO EPROTO
+#define SLIPROCK_EINTR EINTR
 
 #endif /* defined _WIN32 */
-
+#ifdef __cplusplus
+extern "C" {
+#elif 0
+}
+#endif
 #define CHALLENGE_BYTES 32
+#define KEY_BYTES 32
 #define RESPONSE_BYTES 32
 #define HANDSHAKE_BYTES (CHALLENGE_BYTES + RESPONSE_BYTES)
-typedef unsigned char key[32];
 struct sliprock_pending_connection {
-  key key;
+  unsigned char key[KEY_BYTES];
   unsigned char send_buffer[HANDSHAKE_BYTES],
       receive_buffer[HANDSHAKE_BYTES];
   int status;
@@ -48,9 +53,9 @@ struct sliprock_pending_connection {
 
 int sliprock__poll(struct sliprock_pending_connection *con,
                    sliprock_socket_t fd, int timeout);
-int sliprock__init_pending_connection(
+SLIPROCK_API int sliprock__init_pending_connection(
     struct sliprock_pending_connection *pending,
-    const unsigned char buf[static 32]);
+    const unsigned char buf[32]);
 void sliprock__on_send(struct sliprock_pending_connection *con,
                        size_t size);
 int sliprock__on_receive(struct sliprock_pending_connection *con,
@@ -63,3 +68,8 @@ enum sliprock_status {
   SLIPROCK_MORE_DATA = 1,
   SLIPROCK_COMPLETE = 2,
 };
+#if 0
+{
+#elif defined __cplusplus
+}
+#endif

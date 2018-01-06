@@ -13,6 +13,7 @@
 
 #include "../include/sliprock.h"
 #include "sliprock_internals.h"
+#include "sliprock_poll.h"
 #include "stringbuf.h"
 #include <csignal>
 #include <exception>
@@ -67,11 +68,9 @@ bool client(char (&buf)[size], SliprockConnection *con, bool &finished,
   int x = sliprock_open("dummy_valr", sizeof("dummy_val") - 1,
                         sliprock_getpid(), &receiver);
   MADE_IT;
-  BOOST_TEST(x == 0);
   BOOST_REQUIRE(x == 0);
   MADE_IT;
   x = sliprock_connect(receiver, &fd_);
-  BOOST_TEST(x == 0);
   BOOST_REQUIRE(x == 0);
   MADE_IT;
   HANDLE fd = (HANDLE)fd_;
@@ -89,8 +88,6 @@ bool client(char (&buf)[size], SliprockConnection *con, bool &finished,
   }
 #endif
   // static_assert(sizeof buf2 == sizeof buf, "Buffer size mismatch");
-  static_assert(sizeof con->address == sizeof receiver->sock,
-                "Connection size mismatch");
   BOOST_TEST(memcmp(&buf2[0], &buf[0], sizeof buf) == 0);
   fwrite(buf, 1, sizeof buf, stderr);
   fwrite(buf2, 1, sizeof buf2, stderr);
@@ -98,15 +95,14 @@ bool client(char (&buf)[size], SliprockConnection *con, bool &finished,
   BOOST_TEST((int)fd > -1);
 #endif
   read_succeeded = true;
-  BOOST_TEST(0 == memcmp(reinterpret_cast<void *>(&receiver->sock),
-                         reinterpret_cast<void *>(&con->address),
-                         sizeof con->address));
-  BOOST_TEST(read_succeeded == true);
+  BOOST_TEST(0 == memcmp(reinterpret_cast<void *>(&receiver->prefix),
+                         reinterpret_cast<void *>(&con->prefix),
+                         sizeof con->prefix));
   BOOST_TEST(receiver != static_cast<SliprockReceiver *>(nullptr));
 #ifndef _WIN32
   BOOST_TEST(close(fd) == 0);
 #else
-  BOOST_TEST(CloseHandle(fd) != 0);
+  BOOST_TEST(closesocket(fd) != 0);
 #endif
   sliprock_close_receiver(receiver);
   return read_succeeded;
@@ -270,4 +266,31 @@ BOOST_AUTO_TEST_CASE(can_create_connection) {
 
   sliprock_close(con);
 }
-// BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_CASE(too_many_bytes_received) {
+  sliprock_pending_connection con{ };
+  memset(&con, 0, sizeof con);
+  unsigned char buf[32] = { 0 };
+  BOOST_REQUIRE(sliprock_randombytes_sysrandom_buf(buf, sizeof(buf)) == 0);
+  BOOST_REQUIRE(sliprock__init_pending_connection(&con, buf) == 0);
+  BOOST_TEST(sliprock__on_receive(&con, 100) == -EFAULT);
+  BOOST_TEST(sliprock__on_receive(&con, 33) == -EPROTO);
+}
+
+BOOST_AUTO_TEST_CASE(protocol_send) {
+  sliprock_pending_connection con{ };
+  memset(&con, 0, sizeof con);
+  unsigned char buf[32] = { 0 };
+  BOOST_REQUIRE(sliprock_randombytes_sysrandom_buf(buf, sizeof(buf)) == 0);
+  BOOST_REQUIRE(sliprock__init_pending_connection(&con, buf) == 0);
+  BOOST_TEST(sliprock__on_receive(&con, 16) == 0);
+  BOOST_TEST(con.to_send == 32);
+  BOOST_TEST(sliprock__on_receive(&con, 15) == 0);
+  sliprock__on_send(&con, 32);
+  BOOST_TEST(con.to_send == 0);
+  BOOST_TEST(sliprock__on_receive(&con, 1) == 0);
+  BOOST_TEST(con.to_send == 32);
+  BOOST_TEST(!con.good);
+  BOOST_TEST(sliprock__on_receive(&con, 32) == -EPROTO);
+  BOOST_TEST(con.status != 0);
+}

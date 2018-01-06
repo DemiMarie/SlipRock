@@ -125,7 +125,7 @@ static void execute_client(const uint32_t pid, const char *const name) {
     fail("sliprock_connect");
   if (verbose)
     fprintf(stderr, "Connection succeeded: fd = %d,\nsocket path = %s\n",
-            (int)fd, receiver->sock.sun_path);
+            (int)fd, receiver->prefix.sockaddr.addr.sun_path);
   sliprock_close_receiver(receiver);
   copy_fds((int)fd);
 }
@@ -139,7 +139,8 @@ static void execute_server(const char *const name) {
   if (NULL == con)
     fail("sliprock_socket");
   if (verbose)
-    fprintf(stderr, "Listening on socket %s\n", con->address.sun_path);
+    fprintf(stderr, "Listening on socket %s\n",
+            con->prefix.sockaddr.addr.sun_path);
   check_sliprock(sliprock_accept(con, &fd));
   if (verbose)
     fprintf(stderr, "Accepted file descriptor %d\n", (int)fd);
