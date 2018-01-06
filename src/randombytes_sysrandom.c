@@ -354,7 +354,7 @@ sliprock_randombytes_sysrandom_close(void)
     return ret;
 }
 #endif
-SLIPROCK_WARN_UNUSED_RESULT int
+SLIPROCK_API SLIPROCK_WARN_UNUSED_RESULT int
 sliprock_randombytes_sysrandom_buf(void *const buf, const size_t size) {
 #ifndef _WIN32
   if (init_func() < 0)

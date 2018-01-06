@@ -1,15 +1,5 @@
 #define SLIPROCK_INTERNALS
-#ifdef _WIN32
-#define _UNICODE
-#define UNICODE
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
-#endif
-#include <stdint.h>
 
-#include "config.h"
 #include "include/sliprock.h"
 #include "sliprock_internals.h"
 #include "src/stringbuf.h"
@@ -19,15 +9,11 @@
 #include "src/sliprock_unix.h"
 #endif
 #include <ctype.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#ifndef _WIN32
-#include <errno.h>
-#endif
 #include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 SLIPROCK_API void sliprock_close(struct SliprockConnection *connection) {
   if (NULL == connection) {
@@ -217,8 +203,9 @@ fail:
   return -(errno = e);
 }
 
-int sliprock_socket(const char *const name, size_t const namelen,
-                    struct SliprockConnection **connection_) {
+SLIPROCK_API int sliprock_socket(const char *const name,
+                                 size_t const namelen,
+                                 struct SliprockConnection **connection_) {
   struct SliprockConnection *connection;
   int err;
   *connection_ = NULL;
@@ -278,7 +265,7 @@ SLIPROCK_API int sliprock_open(const char *const identifier, size_t size,
                                struct SliprockReceiver **receiver) {
   int err = SLIPROCK_EINTERNALERROR;
   OsHandle fd;
-  struct StringBuf fname = {0};
+  struct StringBuf fname = {0, 0, 0};
   assert(receiver);
   *receiver = NULL;
   if ((err = sliprock_check_charset(identifier, size)))

@@ -1,17 +1,17 @@
-#include "SHA256.c"
+#include "SHA256.h"
 #include "sliprock_internals.h"
 #include "sliprock_poll.h"
-#include <config.h>
 #include <sliprock.h>
+#include <sliprock/config.h>
 #include <stdio.h>
 static void compute_reply(const unsigned char key[static 32],
                           const unsigned char challenge[static 32],
                           unsigned char hash[static 32]) {
   hash_state st;
-  sha_init(&st);
-  sha_process(&st, key, 32);
-  sha_process(&st, challenge, 32);
-  sha_done(&st, hash);
+  sliprock__SHA256_init(&st);
+  sliprock__SHA256_process(&st, key, 32);
+  sliprock__SHA256_process(&st, challenge, 32);
+  sliprock__SHA256_done(&st, hash);
 }
 
 static bool verify_challenge(const unsigned char key[static 32],
@@ -51,7 +51,7 @@ static int on_receive(struct sliprock_pending_connection *con,
 #ifdef SLIPROCK_DO_TRACE
   fprintf(stderr, "Got %d bytes\n", (int)size);
 #endif
-  assert(255 - con->received >= size);
+  assert(255U - con->received >= size);
   con->received += size;
   assert(con->received >= size && "impossible integer overflow");
   if (con->sent < CHALLENGE_BYTES && con->received > CHALLENGE_BYTES) {
@@ -101,13 +101,31 @@ int sliprock__on_receive(struct sliprock_pending_connection *con,
 }
 
 SLIPROCK_API void
-sliprock_on_receive(struct sliprock_pending_connection *con, size_t size) {
-  sliprock__on_receive(con, size);
+sliprock_on_send(struct sliprock_pending_connection *pending, size_t *size,
+                 const void **buf) {
+  size_t size_;
+  assert(NULL != size);
+  assert(NULL != buf);
+  size_ = *size;
+  if (size_) {
+    sliprock__on_send(pending, size_);
+  }
+  *size = pending->to_send;
+  *buf = pending->send_buffer + pending->sent;
 }
 
-SLIPROCK_API void sliprock_on_send(struct sliprock_pending_connection *con,
-                                   size_t size) {
-  sliprock__on_send(con, size);
+SLIPROCK_API int
+sliprock_on_receive(struct sliprock_pending_connection *con, size_t *size,
+                    void **buf) {
+  size_t size_;
+  int retval;
+  assert(NULL != size);
+  assert(NULL != buf);
+  size_ = *size;
+  retval = size_ ? sliprock__on_receive(con, size_) : 0;
+  *size = sizeof(con->receive_buffer) - con->received;
+  *buf = con->receive_buffer + con->received;
+  return retval;
 }
 
 bool sliprock__connection_is_good(

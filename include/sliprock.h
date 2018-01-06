@@ -5,31 +5,18 @@ extern "C" {
 #elif 0
 } /* make emacs indent happy */
 #endif
+
+#include <assert.h>
+#include <sliprock/config.h>
+
 #ifdef SLIPROCK_INTERNALS
 #include "../src/sliprock_internals.h"
 #endif
-#include <assert.h>
-#ifdef _WIN32
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <winsock2.h>
-#ifdef SLIPROCK_INTERNALS
-#define SLIPROCK_API __declspec(dllexport)
-#else
-#define SLIPROCK_API __declspec(dllimport)
-#endif
-#else
+
+#ifndef _WIN32
 #include <sys/socket.h>
 #include <sys/types.h>
-#ifdef __GNUC__
-#define SLIPROCK_API __attribute__((visibility("default")))
-#else
-#define SLIPROCK_API
 #endif
-#endif
-
-#include <stdint.h>
 
 #define SLIPROCK_EOSERR -1    /* Operating system failure */
 #define SLIPROCK_ENOMEM -2    /* Out of memory */
@@ -43,15 +30,6 @@ extern "C" {
 #define SLIPROCK_EINTERNALERROR -10 /* Internal error (this is a bug) */
 /* #define SLIPROCK_EPROTO -11        Protocol error */
 
-#if !defined static_assert && (!defined __cplusplus || __cplusplus < 201103L)
-#define SLIPROCK_STATIC_ASSERT(expr)                                           \
-  ((void)sizeof(struct {                                                       \
-    int static_assertion_failed : (8 * sizeof(int) * ((2 * !!(expr)) - 1));    \
-  }))
-#else
-#define SLIPROCK_STATIC_ASSERT(expr)                                           \
-  static_assert(expr, "Static assertion failed")
-#endif
 typedef struct SliprockConnection SliprockConnection;
 
 typedef uint64_t SliprockHandle;
@@ -245,9 +223,67 @@ SLIPROCK_API int
 sliprock_init_pending_connection(struct sliprock_pending_connection **pending,
                                  struct SliprockAnyConnection *connection);
 
+/**
+ * Obtains a {struct sockaddr_storage} with the address of the connection.
+ *
+ * \param connection [in] The connection to get the socket information from.
+ * \param addr [out] Stores the socket address.
+ */
 SLIPROCK_API void
 sliprock_get_sockaddr(struct SliprockAnyConnection *connection,
                       struct sockaddr_storage *addr);
+
+/**
+ * \brief Notify Sliprock that a read has completed.
+ *
+ * The asynchronous API requires the user to notify Sliprock when
+ * I/O has completed.  Sliprock provides its own buffers, so the
+ * user does not need to allocate memory for them.  This is the reason
+ * for the lack of a `void*` containing the buffer data.
+ *
+ * This function returns 0 on success, or a SlipRock error code otherwise.
+ *
+ * \param [in] pending The pending connection.
+ * \param [inout] size This must point to a valid `size_t` that holds the number
+ *        of bytes read (which may be zero).  On return, the size_t holds the
+ *        number of bytes that still need to be read, which might be zero.
+ * \param [out] buf On return, this will be set to the pointer the user code
+ *        should write to.  It will be set to `NULL` when no more bytes need to
+ *        be read.
+ */
+SLIPROCK_API int
+sliprock_on_receive(struct sliprock_pending_connection *pending, size_t *size,
+                    void **buf);
+
+/**
+ * \brief Notify Sliprock that a write is complete
+ *
+ * The asynchronous API requires the user to notify Sliprock when
+ * I/O has completed.  Sliprock provides its own buffers, so the
+ * user does not need to allocate memory for them.  This is the reason
+ * for the lack of a `void*` containing the buffer data.
+ *
+ * This function returns 0 on success, or a SlipRock error code otherwise.
+ *
+ * \param [in] pending The pending connection.
+ * \param [inout] size This must point to a valid `size_t` that holds the number
+ *        of bytes written (which may be zero).  On return, the size_t holds the
+ *        number of bytes that still need to be written, which might be zero.
+ * \param [out] buf On return, this will be set to the pointer the user code
+ *        should read from.  It will be set to `NULL` when no more bytes need to
+ *        be written.
+ */
+SLIPROCK_API void sliprock_on_send(struct sliprock_pending_connection *pending,
+                                   size_t *size, const void **buf);
+
+/**
+ * Destroy a sliprock_pending_connection and release underlying resources.
+ *
+ * Further use of the sliprock_pending_connection pointer results in undefined
+ * behavior.
+ */
+SLIPROCK_API void
+sliprock_free_pending_connection(sliprock_pending_connection *pending);
 
 #ifdef _MSC_VER
 #define SLIPROCK_NOINLINE __declspec(noinline)
@@ -263,7 +299,7 @@ sliprock_get_sockaddr(struct SliprockAnyConnection *connection,
  *
  * @return -1 if they are equal, or -1 otherwise.
  */
-SLIPROCK_NOINLINE int
+SLIPROCK_API SLIPROCK_NOINLINE int
 sliprock_secure_compare_memory(const volatile unsigned char *const buf1,
                                const volatile unsigned char *const buf2,
                                size_t len);
@@ -279,7 +315,7 @@ sliprock_secure_compare_memory(const volatile unsigned char *const buf1,
  *
  * @return 0 on success, or -1 on error.
  */
-SLIPROCK_WARN_UNUSED_RESULT int
+SLIPROCK_API SLIPROCK_WARN_UNUSED_RESULT int
 sliprock_randombytes_sysrandom_buf(void *const buf, const size_t size);
 
 #if defined __cplusplus

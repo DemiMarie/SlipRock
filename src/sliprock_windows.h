@@ -13,17 +13,13 @@
 
 #include <assert.h>
 #include <processthreadsapi.h>
+#include <sliprock/config.h>
 #include <src/stringbuf.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <userenv.h>
-#include <windows.h>
 #define sliprock_unlink DeleteFileW
 #define rmdir RemoveDirectoryW
-
-typedef _Bool bool;
-#define true /* */ ((_Bool)1)
-#define false /* */ ((_Bool)0)
 
 typedef wchar_t MyChar;
 typedef HANDLE OsHandle;

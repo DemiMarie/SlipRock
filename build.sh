@@ -8,6 +8,7 @@ case $mydir in
    /*) cd "$mydir";;
     *) cd "./$mydir";;
 esac
+mkdir -p build
 typeset -a definitions
 for i; do
    case $i in

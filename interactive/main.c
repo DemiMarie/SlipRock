@@ -13,6 +13,7 @@
 #include <getopt.h>
 #include <include/sliprock.h>
 #include <pthread.h>
+#include <signal.h>
 #include <src/sliprock_internals.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -157,6 +158,7 @@ int main(int argc, char **argv) {
       {"pid-file", required_argument, NULL, 'p'},
       {0, 0, 0, 0},
   };
+  signal(SIGPIPE, SIG_IGN);
   while ((res = getopt_long(argc, argv, ":Vvh?p:", long_options,
                             &option_index)) != -1) {
     switch (res) {

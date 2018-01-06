@@ -17,7 +17,7 @@ endif()
 
 set(both_flag_list Werror Wstrict-aliasing Wstrict-overflow Wall Wextra
     Wno-padded Wno-disabled-macro-expansion
-   Wno-gnu-statement-expression Wformat=2 Wstrict-aliasing=5 Wstrict-overflow=5)
+   Wno-gnu-statement-expression Wformat=2 Wstrict-aliasing=5)
 
 if (WINDOWS)
    set(both_flag_list "${both_flag_list};-static-libgcc;-static-libstdc++")
@@ -56,39 +56,61 @@ endfunction()
 if (WIN32)
    add_definitions(-DWIN32_LEAN_AND_MEAN)
 endif()
+include(CheckCSourceCompiles)
+
+# Check for include files
 include(CheckIncludeFiles)
-check_include_files(stdint.h HAVE_STDINT_H)
-check_include_files(inttypes.h HAVE_INTTYPES_H)
-check_include_files(sys/inttypes.h HAVE_SYS_INTTYPES_H)
-check_include_files(stdbool.h HAVE_STDBOOL_H)
+check_include_files(stdint.h SLIPROCK_HAVE_STDINT_H)
+check_include_files(inttypes.h SLIPROCK_HAVE_INTTYPES_H)
+check_include_files(sys/inttypes.h SLIPROCK_HAVE_SYS_INTTYPES_H)
+check_include_files(stdbool.h SLIPROCK_HAVE_STDBOOL_H)
+
+# Set hidden visibility
+set(CMAKE_C_VISIBILITY_PRESET hidden)
+
+# Check for GNU/BSD extensions
 if (NOT MSVC)
+   # Test for GNU visibility control
+   check_c_source_compiles([[
+      __attribute__((visibility("default"))) int main(void) {}
+   ]] SLIPROCK_HAVE_GNU_VISIBILITY)
    if(UNIX)
-      # Check for openat()
       add_definitions(-D_GNU_SOURCE)
       set(AT_HEADERS sys/stat.h sys/types.h fcntl.h)
-      check_symbol_exists(openat "${AT_HEADERS}" HAVE_OPENAT)
-      check_symbol_exists(renameat "fcntl.h;stdio.h" HAVE_RENAMEAT)
+      check_symbol_exists(openat "${AT_HEADERS}" SLIPROCK_HAVE_OPENAT)
+      check_symbol_exists(renameat "fcntl.h;stdio.h" SLIPROCK_HAVE_RENAMEAT)
 
-      include(CheckCSourceCompiles)
       list(APPEND CMAKE_REQUIRED_DEFINITIONS -D_GNU_SOURCE)
+      # Check for accept4
       check_c_source_compiles([[
          #include <stddef.h>
          #include <sys/types.h>
          #include <sys/socket.h>
-         int main(void) { 
+         int main(void) {
             int res = accept4(0, NULL, NULL, SOCK_CLOEXEC);
-         }]] HAVE_ACCEPT4)
-      if (NOT HAVE_ACCEPT4)
+         }]] SLIPROCK_HAVE_ACCEPT4)
+      if (NOT SLIPROCK_HAVE_ACCEPT4)
          message(WARNING "Cannot atomically make sockets close-on-exec")
       endif()
    endif()
-   if (NOT MSVC AND 0)
    check_compiler_lang_flags(C "${c_flag_list}")
 endif()
 
+# Check for MS visibility
+if (NOT SLIPROCK_HAVE_GNU_VISIBILITY)
+   check_c_source_compiles([[
+      __declspec(dllexport) int main(void) {}
+      ]] SLIPROCK_HAVE_MS_VISIBILITY)
 endif()
+
+check_c_source_compiles([[
+   #include <assert.h>
+   int main(void) { static_assert(1, "will not be displayed"); }
+   ]] SLIPROCK_HAVE_STATIC_ASSERT)
+
 find_package(Boost COMPONENTS unit_test_framework)
 
+add_definitions(-g)
 find_package(Threads)
 if (THREADS_FOUND)
    find_package(Boost COMPONENTS unit_test_framework)
@@ -112,7 +134,8 @@ if (SLIPROCK_ENABLE_WIP)
    add_subdirectory(wip)
 endif()
 
-configure_file(config.h.in config.h)
+configure_file(include/config.h.in sliprock/config.h)
 
 add_definitions(-UNDEBUG)
 install(FILES include/sliprock.h DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
+install(DIRECTORY "${PROJECT_BINARY_DIR}/sliprock" DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")

@@ -23,8 +23,8 @@
  *
  */
 
-#ifndef __HASH_SHA2_H
-#define __HASH_SHA2_H
+#ifndef HASH_SHA2_H
+#define HASH_SHA2_H
 
 /* check if implementation set the correct macros */
 #ifndef MODULE_NAME
@@ -91,4 +91,4 @@ typedef struct {
   unsigned char buf[BLOCK_SIZE];
 } hash_state;
 
-#endif /* __HASH_SHA2_H */
+#endif /* HASH_SHA2_H */

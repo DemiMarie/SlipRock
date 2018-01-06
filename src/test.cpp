@@ -277,7 +277,7 @@ BOOST_AUTO_TEST_CASE(too_many_bytes_received) {
   BOOST_TEST(sliprock__on_receive(&con, 33) == -EPROTO);
 }
 
-BOOST_AUTO_TEST_CASE(protocol_send) {
+BOOST_AUTO_TEST_CASE(protocol_send_error) {
   sliprock_pending_connection con{ };
   memset(&con, 0, sizeof con);
   unsigned char buf[32] = { 0 };

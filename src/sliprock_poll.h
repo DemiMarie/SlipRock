@@ -1,4 +1,4 @@
-#include "config.h"
+#include "sliprock/config.h"
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -17,9 +17,6 @@ typedef SOCKET sliprock_socket_t;
 #define SLIPROCK_EINTR WSAEINTR
 
 #else /* !defined _WIN32 */
-
-#define SLIPROCK_API __attribute__((visibility("default")))
-
 #include <errno.h>
 #include <poll.h>
 #include <unistd.h>
@@ -61,8 +58,6 @@ void sliprock__on_send(struct sliprock_pending_connection *con,
 int sliprock__on_receive(struct sliprock_pending_connection *con,
                          size_t size);
 bool sliprock__connection_is_good(struct sliprock_pending_connection *con);
-SLIPROCK_API void sliprock_on_send(struct sliprock_pending_connection *con,
-                                   size_t bytes);
 
 enum sliprock_status {
   SLIPROCK_MORE_DATA = 1,

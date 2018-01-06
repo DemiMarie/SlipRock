@@ -65,7 +65,7 @@ SLIPROCK_API int sliprock_accept(struct SliprockConnection *connection,
   memset(&_dummy, 0, sizeof(_dummy));
   memset(&con, 0, sizeof(con));
   assert(-1 != connection->fd);
-#if HAVE_ACCEPT4
+#if SLIPROCK_HAVE_ACCEPT4
   fd = accept4(connection->fd, &_dummy, &_dummy2, SOCK_CLOEXEC);
   *handle = (SliprockHandle)fd;
   if (fd < 0)
@@ -178,7 +178,7 @@ static int create_directory_and_file(struct StringBuf *buf) {
   if (fchmod(dir_fd, 0700) < 0)
     goto fail;
   *terminus = '/';
-#if HAVE_RENAMEAT
+#if SLIPROCK_HAVE_RENAMEAT
   dummybuf = strdup(terminus + 1);
 #else
   dummybuf = strdup(buf->buf);
@@ -191,7 +191,7 @@ static int create_directory_and_file(struct StringBuf *buf) {
     if (sliprock_randombytes_sysrandom_buf(&rnd, sizeof rnd) < 0)
       goto fail;
     StringBuf_add_hex(buf, rnd);
-#if HAVE_OPENAT
+#if SLIPROCK_HAVE_OPENAT
     file_fd = openat(dir_fd, terminus + 1,
                      O_RDWR | O_CREAT | O_CLOEXEC | O_EXCL, 0600);
 #else
@@ -202,7 +202,7 @@ static int create_directory_and_file(struct StringBuf *buf) {
       break;
     buf->buf -= 16;
   }
-#if HAVE_RENAMEAT
+#if SLIPROCK_HAVE_RENAMEAT
   if (renameat(dir_fd, terminus + 1, dir_fd, dummybuf) < 0) {
     goto fail;
   }
@@ -268,7 +268,7 @@ static ssize_t sliprock_read_receiver(OsHandle fd,
   return readv(fd, vecs, 3);
 }
 
-#if !HAVE_ACCEPT4
+#if !SLIPROCK_HAVE_ACCEPT4
 static void sliprock_set_cloexec(OsHandle fd) {
   fcntl(fd, F_SETFD, FD_CLOEXEC);
 }

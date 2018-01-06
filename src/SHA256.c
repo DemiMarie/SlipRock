@@ -27,14 +27,7 @@
  *
  */
 
-#include "config.h"
-
-#define MODULE_NAME SHA256
-#define DIGEST_SIZE (256 / 8)
-#define BLOCK_SIZE (512 / 8)
-#define WORD_SIZE 4
-#define SCHEDULE_SIZE 64
-#include "hash_SHA2.h"
+#include "SHA256.h"
 
 /* Initial Values H */
 static const sha2_word_t H[8] = {0x6a09e667, 0xbb67ae85, 0x3c6ef372,
@@ -167,15 +160,15 @@ static int add_length(hash_state *hs, sha2_word_t inc) {
 }
 
 /* init the SHA state */
-static void sha_init(hash_state *hs) {
+void sliprock__SHA256_init(hash_state *hs) {
   int i;
   hs->curlen = hs->length_upper = hs->length_lower = 0;
   for (i = 0; i < 8; ++i)
     hs->state[i] = H[i];
 }
 
-static void sha_process(hash_state *hs, const unsigned char *buf,
-                        int len) {
+void sliprock__SHA256_process(hash_state *hs, const unsigned char *buf,
+                              int len) {
   while (len--) {
     /* copy byte */
     hs->buf[hs->curlen++] = *buf++;
@@ -189,8 +182,8 @@ static void sha_process(hash_state *hs, const unsigned char *buf,
   }
 }
 
-static void sha_done(hash_state *hs, unsigned char *hash) {
-  int i;
+void sliprock__SHA256_done(hash_state *hs, unsigned char *hash) {
+  size_t i;
 
   /* increase the length of the message */
   add_length(hs, hs->curlen * 8);

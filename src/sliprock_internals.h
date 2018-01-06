@@ -1,7 +1,7 @@
 #ifndef SLIPROCK_INTERNALS_H_INCLUDED
 #define SLIPROCK_INTERNALS_H_INCLUDED SLIPROCK_INTERNALS_H_INCLUDED
 
-#include "config.h"
+#include "sliprock.h"
 #include <stdarg.h>
 #ifndef _WIN32
 #include <sys/socket.h>

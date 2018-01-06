@@ -1,0 +1,87 @@
+/*
+ *  pycrypto_compat.h: Common header file for PyCrypto
+ *
+ * Written in 2013 by Dwayne C. Litzenberger <dlitz@dlitz.net>
+ * Modified in 2017 by Demi Marie Obenour <demiobenour@gmail.com>
+ *
+ * ===================================================================
+ * The contents of this file are dedicated to the public domain.  To
+ * the extent that dedication to the public domain is not available,
+ * everyone is granted a worldwide, perpetual, royalty-free,
+ * non-exclusive license to exercise all rights associated with the
+ * contents of this file for any purpose whatsoever.
+ * No rights are reserved.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ * ===================================================================
+ */
+#ifndef SLIPROCK_CONFIG_H_INCLUDED
+#define SLIPROCK_CONFIG_H_INCLUDED
+
+#ifdef _WIN32
+#define UNICODE 1
+#define _UNICODE 1
+#include <winsock2.h>
+#else
+#include <errno.h>
+#endif
+
+
+#cmakedefine01 SLIPROCK_HAVE_OPENAT
+#cmakedefine01 SLIPROCK_HAVE_RENAMEAT
+#cmakedefine01 SLIPROCK_HAVE_ACCEPT4
+#cmakedefine01 SLIPROCK_HAVE_STDINT_H
+#cmakedefine01 SLIPROCK_HAVE_INTTYPES_H
+#cmakedefine01 SLIPROCK_HAVE_SYS_INTTYPES_H
+#cmakedefine01 SLIPROCK_HAVE_STDBOOL_H
+#cmakedefine SLIPROCK_HAVE_GNU_VISIBILITY
+#cmakedefine SLIPROCK_HAVE_MS_VISIBILITY
+
+#if SLIPROCK_HAVE_STDINT_H
+# include <stdint.h>
+#elif SLIPROCK_HAVE_INTTYPES_H
+# include <inttypes.h>
+#elif SLIPROCK_HAVE_SYS_INTTYPES_H
+# include <sys/inttypes.h>
+#else
+# error "stdint.h and inttypes.h not found"
+#endif
+
+#if SLIPROCK_HAVE_STDBOOL_H
+# include <stdbool.h>
+#else
+typedef uint8_t bool;
+# define true ((uint8_t)1)
+# define false ((uint8_t)0)
+#endif
+
+/* Visibility support. */
+#ifdef SLIPROCK_HAVE_MS_VISIBILITY
+# ifdef SLIPROCK_INTERNALS
+#  define SLIPROCK_API __declspec(dllexport)
+# else
+#  define SLIPROCK_API __declspec(dllimport)
+# endif
+#elif defined SLIPROCK_HAVE_GNU_VISIBILITY
+# define SLIPROCK_API __attribute__((visibility("default")))
+#endif
+
+/* Static assertions */
+#ifdef SLIPROCK_HAVE_STATIC_ASSERT
+# define SLIPROCK_STATIC_ASSERT(expr) static_assert(expr, "Static assertion failed")
+#else
+# define SLIPROCK_STATIC_ASSERT(expr)                                          \
+  ((void)sizeof(struct {                                                       \
+    int static_assertion_failed : (8 * sizeof(int) * ((2 * !!(expr)) - 1));    \
+  }))
+#endif
+
+
+#endif /* SLIPROCK_CONFIG_H_INCLUDED */
